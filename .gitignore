@@ -1,0 +1,136 @@
+# =========================
+# Sistema / editor
+# =========================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.ipynb_checkpoints/
+
+# Entornos
+.venv/
+venv/
+ENV/
+env/
+pip-wheel-metadata/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Coverage / test
+.coverage
+coverage.xml
+htmlcov/
+nosetests.xml
+pytest.xml
+
+# =========================
+# Logs / runtime
+# =========================
+*.log
+logs/
+tmp/
+*.pid
+
+# =========================
+# Variables de entorno / secretos
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# ML / Data (muy importante)
+# =========================
+# Datasets / imágenes (ajusta nombres según tu proyecto)
+data/
+dataset/
+datasets/
+raw/
+processed/
+uploads/
+media/
+
+# Resultados / checkpoints
+results/
+results_finetune/
+runs/
+wandb/
+mlruns/
+lightning_logs/
+checkpoints/
+
+# Modelos entrenados (si no quieres versionarlos)
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.tflite
+
+# Archivos grandes comunes
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# =========================
+# Jupyter
+# =========================
+*.ipynb
+# (si quieres versionar notebooks, borra la línea de arriba)
+
+# =========================
+# Frontend (Node)
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+dist/
+build/
+
+# Next.js / Nuxt / SvelteKit
+.next/
+out/
+.nuxt/
+.svelte-kit/
+
+# Vite / Parcel / cache
+.vite/
+.parcel-cache/
+
+# =========================
+# Docker
+# =========================
+*.local
+docker-compose.override.yml
+
+# =========================
+# Otros
+# =========================
+*.sqlite3
+*.db
+*.png
+
+backend/models_store/
+*.pt
+*.pth
