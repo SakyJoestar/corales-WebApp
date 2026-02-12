@@ -213,7 +213,8 @@ def predict_points_batch(img, points, model, tfm):
 async def process(
     file: UploadFile = File(...),
     n: int = Form(100),
-    model_id: str = Form("")
+    model_id: str = Form(""),
+    points_json: str = Form("")  # 👈 NUEVO
 ):
     if not model_id:
         return JSONResponse({"error": "Selecciona un modelo"}, status_code=400)
@@ -224,17 +225,38 @@ async def process(
     model, tfm = load_model_by_id(model_id)
 
     w, h = img.size
-    points = generate_random_points(w, h, n=n)
+
+    # ✅ Si vienen puntos manuales, usarlos. Si no, generar random.
+    points = []
+    if points_json:
+        try:
+            points = json.loads(points_json)
+        except Exception:
+            return JSONResponse({"error": "points_json inválido"}, status_code=400)
+
+        # Asegurar campos necesarios
+        for i, p in enumerate(points, start=1):
+            x = int(p.get("x", 0))
+            y = int(p.get("y", 0))
+            p["idx"] = int(p.get("idx", i))
+            p["label"] = p.get("label") or idx_to_label_excel(p["idx"])
+            p["x"] = x
+            p["y"] = y
+            p["x_norm"] = float(x / w) if w else 0.0
+            p["y_norm"] = float(y / h) if h else 0.0
+            p["source"] = p.get("source", "manual")
+    else:
+        points = generate_random_points(w, h, n=n)
 
     pred_idxs, confs = predict_points_batch(img, points, model, tfm)
 
     for p, idx, conf in zip(points, pred_idxs, confs):
         p["pred_label"] = CLASSES[int(idx)]
         p["confidence"] = float(conf)
+        p.setdefault("source", "modelo")
 
     annotated = draw_points(img, points)
 
-    # 🔥 Convertir a base64 en vez de guardar en disco
     buffer = io.BytesIO()
     annotated.save(buffer, format="PNG")
     img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")

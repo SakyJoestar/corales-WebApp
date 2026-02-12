@@ -31,7 +31,6 @@ button {
   background: #f3f3f3;
   cursor: pointer;
 }
-
 button:hover { background: #e9e9e9; }
 
 input[type="number"] { width: 90px; }
@@ -45,22 +44,15 @@ input[type="number"] { width: 90px; }
 
 table {
   border-collapse: collapse;
-  width: 560px;
+  width: 720px;
   max-width: 100%;
   font-size: 14px;
 }
 
-th, td {
-  border: 1px solid #ddd;
-  padding: 6px 8px;
-}
+th, td { border: 1px solid #ddd; padding: 6px 8px; }
+th { background: #f0f0f0; text-align: left; }
 
-th {
-  background: #f0f0f0;
-  text-align: left;
-}
-
-/* VISOR GRANDE */
+/* VISOR */
 #viewer {
   width: min(1200px, 98vw);
   height: 75vh;
@@ -81,19 +73,7 @@ th {
   -webkit-user-drag: none;
 }
 
-#status {
-  margin-top: 8px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.help-text {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 8px;
-}
-
-/* Overlay encima de la imagen (para resaltar puntos) */
+/* Overlay de highlight (amarillo) */
 #overlay{
   position: absolute;
   left: 0;
@@ -102,10 +82,19 @@ th {
   pointer-events: none;
 }
 
-/* Marcador llamativo (amarillo neón) */
-:root{
-  --hl: #ffe600; /* amarillo neón */
+/* Overlay para mostrar TODOS los puntos manuales */
+#overlayAll{
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
 }
+
+#status { margin-top: 8px; font-size: 14px; font-weight: bold; }
+.help-text { font-size: 13px; color: #666; margin-bottom: 8px; }
+
+:root{ --hl: #ffe600; }
 
 .highlight-marker{
   position: absolute;
@@ -113,33 +102,19 @@ th {
   pointer-events: none;
   z-index: 10;
 }
-
 .highlight-marker .hline,
 .highlight-marker .vline{
   position: absolute;
-  left: 50%;
-  top: 50%;
+  left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   background: var(--hl);
   box-shadow: 0 0 14px rgba(255,230,0,0.95), 0 0 4px rgba(0,0,0,0.6);
 }
-
-.highlight-marker .hline{
-  width: 38px;
-  height: 5px;
-  border-radius: 4px;
-}
-
-.highlight-marker .vline{
-  width: 5px;
-  height: 38px;
-  border-radius: 4px;
-}
-
+.highlight-marker .hline{ width: 38px; height: 5px; border-radius: 4px; }
+.highlight-marker .vline{ width: 5px; height: 38px; border-radius: 4px; }
 .highlight-marker .hlabel{
   position: absolute;
-  left: 20px;
-  top: -20px;
+  left: 20px; top: -20px;
   font-weight: 900;
   font-size: 18px;
   color: var(--hl);
@@ -147,11 +122,52 @@ th {
   white-space: nowrap;
 }
 
-/* Resaltado de fila seleccionada */
 .row-highlight{
   outline: 2px solid var(--hl);
   outline-offset: -2px;
   background: rgba(255,230,0,0.12);
+}
+
+.badge{
+  display:inline-block;
+  padding:2px 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  border:1px solid #ddd;
+  background:#f7f7f7;
+}
+.badge.manual{
+  border-color: rgba(255,230,0,0.6);
+  background: rgba(255,230,0,0.18);
+}
+
+/* ====== Puntos manuales visibles (más grandes) ====== */
+.manual-point{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 6;
+}
+.manual-point .hline,
+.manual-point .vline{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #00b7ff;
+  box-shadow: 0 0 12px rgba(0,183,255,0.98), 0 0 3px rgba(0,0,0,0.65);
+}
+.manual-point .hline{ width: 34px; height: 5px; border-radius: 6px; }
+.manual-point .vline{ width: 5px; height: 34px; border-radius: 6px; }
+.manual-point .mlabel{
+  position: absolute;
+  left: 18px;
+  top: -20px;
+  font-weight: 900;
+  font-size: 18px;
+  color: #00b7ff;
+  text-shadow: 0 0 12px rgba(0,183,255,0.98), 0 0 2px rgba(0,0,0,0.9);
+  white-space: nowrap;
 }
 </style>
 </head>
@@ -171,8 +187,17 @@ th {
     <label>N puntos:</label>
     <input type="number" id="nPoints" value="100" min="1" max="5000" />
 
+    <label class="badge manual" style="display:flex; gap:6px; align-items:center;">
+      <input type="checkbox" id="manualMode" />
+      Manual
+    </label>
+
     <button type="submit">Procesar</button>
   </form>
+
+  <div class="help-text" id="manualHelp" style="display:none;">
+    ✅ Manual activado: se muestra la imagen SIN puntos. Click izquierdo agrega puntos. Elimina con “Eliminar”. Luego presiona “Procesar” para clasificar y dibujar.
+  </div>
 
   <div id="status"></div>
 </div>
@@ -180,7 +205,7 @@ th {
 <div class="row">
 
   <div class="card">
-    <h3>Imagen anotada</h3>
+    <h3>Imagen</h3>
 
     <div class="toolbar" style="margin-bottom:8px;">
       <button id="resetViewBtn" type="button">Reiniciar vista</button>
@@ -188,19 +213,20 @@ th {
       <button id="downloadXlsxBtn" type="button" disabled>Descargar Excel</button>
 
       <div class="help-text" style="margin:0;">
-        Click: zoom + | Shift+Click: zoom - | Arrastrar: mover | Rueda: zoom
+        Normal: Click=zoom | Shift+Click=zoom- | Arrastrar=mover | Rueda=zoom
       </div>
     </div>
 
     <div id="viewer">
       <img id="outImg" />
+      <div id="overlayAll"></div>
       <div id="overlay"></div>
     </div>
   </div>
 
   <div class="card">
     <h3>Tabla de puntos (editable)</h3>
-    <div class="help-text">Puedes cambiar la clase manualmente con el selector. Click en la letra (ID) para resaltar y hacer zoom al punto.</div>
+    <div class="help-text">Click en ID para resaltar y hacer zoom. En manual, cada click agrega un punto.</div>
     <div id="table"></div>
   </div>
 
@@ -238,178 +264,36 @@ async function loadModels() {
 }
 window.addEventListener("DOMContentLoaded", loadModels);
 
-
-/* ===================== TABLA (EDITABLE + CLICK HIGHLIGHT) ===================== */
-const tableDiv = document.getElementById("table");
-
-function renderTable(points) {
-  const classes = (AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0)
-    ? AVAILABLE_CLASSES
-    : ["Algas","Coral","Otros organismos","Sustrato inerte","Tape","nan"];
-
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>x</th>
-          <th>y</th>
-          <th>clase</th>
-          <th>conf</th>
-          <th>origen</th>
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    const current = p.pred_label ?? "";
-
-    const options = classes.map(c => {
-      const sel = c === current ? "selected" : "";
-      return `<option value="${c}" ${sel}>${c}</option>`;
-    }).join("");
-
-    html += `
-      <tr data-idx="${i}">
-        <td class="idCell" style="cursor:pointer; font-weight:700; text-decoration:underline;">
-          ${p.label ?? ""}
-        </td>
-        <td>${p.x}</td>
-        <td>${p.y}</td>
-
-        <td>
-          <select class="classSelect">
-            ${options}
-          </select>
-        </td>
-
-        <td class="confCell">${p.confidence != null ? Number(p.confidence).toFixed(3) : ""}</td>
-        <td class="srcCell">${p.source ?? "modelo"}</td>
-      </tr>
-    `;
-  }
-
-  html += "</tbody></table>";
-  tableDiv.innerHTML = html;
-
-  // Al cambiar clase, actualizar lastPoints
-  tableDiv.querySelectorAll("select.classSelect").forEach(sel => {
-    sel.addEventListener("change", (e) => {
-      const tr = e.target.closest("tr");
-      const idx = Number(tr.dataset.idx);
-      const newClass = e.target.value;
-
-      if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
-
-      lastPoints[idx].pred_label = newClass;
-      lastPoints[idx].source = "manual";
-
-      // Al editar: limpiar confidence (opcional)
-      lastPoints[idx].confidence = null;
-      tr.querySelector(".confCell").textContent = "";
-      tr.querySelector(".srcCell").textContent = "manual";
-    });
-  });
-
-  // Click en la letra/ID para resaltar + zoom
-  tableDiv.querySelectorAll("td.idCell").forEach(td => {
-    td.addEventListener("click", (e) => {
-      const tr = e.target.closest("tr");
-      const idx = Number(tr.dataset.idx);
-      highlightAndZoomToIdx(idx);
-    });
-  });
-}
-
-
-/* ===================== HELPERS NOMBRE ARCHIVO ===================== */
-function getBaseName(filename) {
-  const justName = (filename || "").split(/[/\\]/).pop();
-  const dot = justName.lastIndexOf(".");
-  return dot > 0 ? justName.slice(0, dot) : (justName || "imagen");
-}
-
-function sanitizeName(name) {
-  return (name || "imagen").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim() || "imagen";
-}
-
-
-/* ===================== PROCESAR ===================== */
+/* ===================== ELEMENTOS ===================== */
 const imageForm = document.getElementById("imageForm");
 const statusEl = document.getElementById("status");
 const outImg = document.getElementById("outImg");
+const viewer = document.getElementById("viewer");
+const overlay = document.getElementById("overlay");
+const overlayAll = document.getElementById("overlayAll");
+const resetViewBtn = document.getElementById("resetViewBtn");
+
+const tableDiv = document.getElementById("table");
 
 const downloadImgBtn = document.getElementById("downloadImgBtn");
 const downloadXlsxBtn = document.getElementById("downloadXlsxBtn");
 
+const manualMode = document.getElementById("manualMode");
+const manualHelp = document.getElementById("manualHelp");
+const nPointsInput = document.getElementById("nPoints");
+
+/* ✅ NUEVO: bloquear añadir puntos después de procesar en manual */
+let manualLocked = false;
+
+/* ===================== ESTADO GENERAL ===================== */
 let lastImageBase64 = "";
 let lastPoints = [];
 let lastModelId = "";
 let lastBaseName = "";
 
-imageForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const fileObj = document.getElementById("imageFile").files[0];
-  if (!fileObj) {
-    statusEl.textContent = "Selecciona una imagen.";
-    return;
-  }
-
-  const baseName = sanitizeName(getBaseName(fileObj.name));
-
-  const fd = new FormData();
-  fd.append("file", fileObj);
-  fd.append("n", document.getElementById("nPoints").value);
-  fd.append("model_id", modelSelect.value);
-
-  statusEl.textContent = "Procesando imagen...";
-  tableDiv.innerHTML = "";
-  outImg.src = "";
-
-  downloadImgBtn.disabled = true;
-  downloadXlsxBtn.disabled = true;
-
-  lastImageBase64 = "";
-  lastPoints = [];
-  lastModelId = "";
-  lastBaseName = "";
-
-  overlay.innerHTML = "";
-  highlightedIdx = -1;
-
-  const res = await fetch("/process", { method: "POST", body: fd });
-  const data = await res.json();
-
-  if (!res.ok) {
-    statusEl.textContent = "Error: " + (data.error || res.status);
-    return;
-  }
-
-  outImg.src = "data:image/png;base64," + data.annotated_image_base64;
-
-  lastImageBase64 = data.annotated_image_base64;
-  lastPoints = data.points || [];
-  lastModelId = modelSelect.value;
-  lastBaseName = baseName;
-
-  renderTable(lastPoints);
-
-  downloadImgBtn.disabled = false;
-  downloadXlsxBtn.disabled = false;
-
-  statusEl.textContent = "Listo ✅";
-});
-
-
-/* ===================== ZOOM + PAN (CLICK) ===================== */
-const viewer = document.getElementById("viewer");
-const resetViewBtn = document.getElementById("resetViewBtn");
-const overlay = document.getElementById("overlay");
 let highlightedIdx = -1;
 
+/* ===================== TRANSFORM (PAN/ZOOM) ===================== */
 let scale = 1;
 let offsetX = 0;
 let offsetY = 0;
@@ -422,19 +306,16 @@ function applyTransform() {
   const t = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
   outImg.style.transform = t;
   overlay.style.transform = t;
+  overlayAll.style.transform = t;
 }
 
-function clampScale(s) {
-  return Math.min(10, Math.max(0.05, s));
-}
+function clampScale(s) { return Math.min(10, Math.max(0.05, s)); }
 
 function fitToViewerCenter() {
   if (!outImg.naturalWidth || !outImg.naturalHeight) return;
 
-  const vw = viewer.clientWidth;
-  const vh = viewer.clientHeight;
-  const iw = outImg.naturalWidth;
-  const ih = outImg.naturalHeight;
+  const vw = viewer.clientWidth, vh = viewer.clientHeight;
+  const iw = outImg.naturalWidth, ih = outImg.naturalHeight;
 
   const s = Math.min(vw / iw, vh / ih);
   scale = clampScale(s);
@@ -454,15 +335,91 @@ function zoomAt(clientX, clientY, factor) {
   const iy = (vy - offsetY) / scale;
 
   const newScale = clampScale(scale * factor);
-
   offsetX = vx - ix * newScale;
   offsetY = vy - iy * newScale;
   scale = newScale;
-
   applyTransform();
 }
 
-/* ===================== HIGHLIGHT + AUTO ZOOM ===================== */
+/* ===================== HELPERS ARCHIVO + LABELS ===================== */
+function getBaseName(filename) {
+  const justName = (filename || "").split(/[/\\]/).pop();
+  const dot = justName.lastIndexOf(".");
+  return dot > 0 ? justName.slice(0, dot) : (justName || "imagen");
+}
+function sanitizeName(name) {
+  return (name || "imagen").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim() || "imagen";
+}
+function idxToLabelExcel(idx) {
+  let label = "";
+  while (idx > 0) {
+    idx -= 1;
+    label = String.fromCharCode("A".charCodeAt(0) + (idx % 26)) + label;
+    idx = Math.floor(idx / 26);
+  }
+  return label;
+}
+function getNextIdx(points) {
+  let mx = 0;
+  for (const p of (points || [])) {
+    const v = Number(p.idx ?? 0);
+    if (!Number.isNaN(v)) mx = Math.max(mx, v);
+  }
+  return mx + 1;
+}
+
+/* Coordenadas imagen desde click */
+function clientToImageCoords(clientX, clientY) {
+  const rect = viewer.getBoundingClientRect();
+  const vx = clientX - rect.left;
+  const vy = clientY - rect.top;
+  const ix = (vx - offsetX) / scale;
+  const iy = (vy - offsetY) / scale;
+  return { x: Math.round(ix), y: Math.round(iy) };
+}
+function isInsideImage(x, y) {
+  const w = outImg.naturalWidth || 0;
+  const h = outImg.naturalHeight || 0;
+  return x >= 0 && y >= 0 && x < w && y < h;
+}
+
+/* ===================== BLOQUEO INPUT N EN MANUAL ===================== */
+function updateNPointsState() {
+  nPointsInput.disabled = manualMode.checked;
+  if (manualMode.checked) {
+    nPointsInput.style.background = "#eee";
+    nPointsInput.style.cursor = "not-allowed";
+  } else {
+    nPointsInput.style.background = "";
+    nPointsInput.style.cursor = "";
+  }
+}
+
+/* ===================== N dinámico + PUNTOS MANUALES VISIBLES ===================== */
+function syncNPointsFromManual() {
+  nPointsInput.value = String(lastPoints.length);
+}
+
+function renderAllManualPoints() {
+  overlayAll.innerHTML = "";
+  if (!manualMode.checked) return;
+
+  for (let i = 0; i < lastPoints.length; i++) {
+    const p = lastPoints[i];
+    const el = document.createElement("div");
+    el.className = "manual-point";
+    el.style.left = p.x + "px";
+    el.style.top = p.y + "px";
+    el.innerHTML = `
+      <div class="hline"></div>
+      <div class="vline"></div>
+      <div class="mlabel">${p.label ?? ""}</div>
+    `;
+    overlayAll.appendChild(el);
+  }
+}
+
+/* ===================== HIGHLIGHT + ZOOM A PUNTO ===================== */
 function highlightPointByIdx(idx) {
   if (!lastPoints || idx < 0 || idx >= lastPoints.length) return;
 
@@ -470,7 +427,6 @@ function highlightPointByIdx(idx) {
   overlay.innerHTML = "";
 
   const p = lastPoints[idx];
-
   const marker = document.createElement("div");
   marker.className = "highlight-marker";
   marker.style.left = p.x + "px";
@@ -487,21 +443,11 @@ function highlightPointByIdx(idx) {
   if (tr) tr.classList.add("row-highlight");
 }
 
-/* Centra el punto en el viewer y aplica un zoom mínimo objetivo */
 function zoomToPoint(p, targetScale = 2.6) {
-  const vw = viewer.clientWidth;
-  const vh = viewer.clientHeight;
-
-  // No bajar el zoom si ya estás más cerca
-  const newScale = clampScale(Math.max(scale, targetScale));
-  scale = newScale;
-
-  // Queremos que el punto (p.x, p.y) quede al centro del viewer:
-  // vx = offsetX + p.x * scale  => offsetX = vx - p.x*scale
-  // vy = offsetY + p.y * scale  => offsetY = vy - p.y*scale
+  const vw = viewer.clientWidth, vh = viewer.clientHeight;
+  scale = clampScale(Math.max(scale, targetScale));
   offsetX = (vw / 2) - (p.x * scale);
   offsetY = (vh / 2) - (p.y * scale);
-
   applyTransform();
 }
 
@@ -511,6 +457,252 @@ function highlightAndZoomToIdx(idx) {
   zoomToPoint(lastPoints[idx], 2.6);
 }
 
+/* ===================== TABLA (editable + eliminar) ===================== */
+function renderTable(points) {
+  const classes = (AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0)
+    ? AVAILABLE_CLASSES
+    : ["Algas","Coral","Otros organismos","Sustrato inerte","Tape","nan"];
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>x</th>
+          <th>y</th>
+          <th>clase</th>
+          <th>conf</th>
+          <th>origen</th>
+          <th>acción</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const current = p.pred_label ?? (classes[0] ?? "");
+
+    const options = classes.map(c => {
+      const sel = c === current ? "selected" : "";
+      return `<option value="${c}" ${sel}>${c}</option>`;
+    }).join("");
+
+    const origin = (p.source ?? "modelo");
+    const originBadge = origin.startsWith("manual")
+      ? `<span class="badge manual">${origin}</span>`
+      : `<span class="badge">${origin}</span>`;
+
+    html += `
+      <tr data-idx="${i}">
+        <td class="idCell" style="cursor:pointer; font-weight:700; text-decoration:underline;">
+          ${p.label ?? ""}
+        </td>
+        <td>${p.x}</td>
+        <td>${p.y}</td>
+        <td><select class="classSelect">${options}</select></td>
+        <td class="confCell">${p.confidence != null ? Number(p.confidence).toFixed(3) : ""}</td>
+        <td class="srcCell">${originBadge}</td>
+        <td><button type="button" class="delBtn">Eliminar</button></td>
+      </tr>
+    `;
+  }
+
+  html += "</tbody></table>";
+  tableDiv.innerHTML = html;
+
+  // editar clase
+  tableDiv.querySelectorAll("select.classSelect").forEach(sel => {
+    sel.addEventListener("change", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      const newClass = e.target.value;
+      if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
+
+      lastPoints[idx].pred_label = newClass;
+
+      const prev = String(lastPoints[idx].source || "modelo");
+      if (!prev.startsWith("manual")) lastPoints[idx].source = "manual-edit";
+      else if (prev === "manual") lastPoints[idx].source = "manual-edit";
+
+      lastPoints[idx].confidence = null;
+      tr.querySelector(".confCell").textContent = "";
+      tr.querySelector(".srcCell").innerHTML = `<span class="badge manual">${lastPoints[idx].source}</span>`;
+    });
+  });
+
+  // click ID => highlight + zoom
+  tableDiv.querySelectorAll("td.idCell").forEach(td => {
+    td.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      highlightAndZoomToIdx(idx);
+    });
+  });
+
+  // eliminar punto
+  tableDiv.querySelectorAll("button.delBtn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
+
+      if (highlightedIdx === idx) {
+        overlay.innerHTML = "";
+        highlightedIdx = -1;
+      }
+
+      lastPoints.splice(idx, 1);
+      syncNPointsFromManual();
+      renderTable(lastPoints);
+      renderAllManualPoints();
+    });
+  });
+}
+
+/* ===================== UTIL: limpiar vista (no mostrar imagen) ===================== */
+function clearPreview() {
+  outImg.src = "";
+  overlay.innerHTML = "";
+  overlayAll.innerHTML = "";
+  highlightedIdx = -1;
+
+  // no tocamos nPoints si no manual (queda para random)
+  tableDiv.innerHTML = "";
+  downloadImgBtn.disabled = true;
+  downloadXlsxBtn.disabled = true;
+}
+
+/* ===================== MODO MANUAL: PREVIEW SIN PUNTOS ===================== */
+function loadOriginalImageForManual() {
+  const fileObj = document.getElementById("imageFile").files[0];
+  if (!fileObj) return;
+
+  manualLocked = false; // ✅ si cambias de imagen o entras manual, se vuelve a permitir marcar
+
+  statusEl.textContent = "Manual: imagen cargada. Click para agregar puntos y luego presiona Procesar.";
+  downloadImgBtn.disabled = true;
+  downloadXlsxBtn.disabled = true;
+  lastImageBase64 = "";
+  lastModelId = modelSelect.value || "";
+  lastBaseName = sanitizeName(getBaseName(fileObj.name));
+
+  lastPoints = [];
+  syncNPointsFromManual();
+  renderTable(lastPoints);
+
+  overlay.innerHTML = "";
+  overlayAll.innerHTML = "";
+  highlightedIdx = -1;
+
+  const reader = new FileReader();
+  reader.onload = () => { outImg.src = reader.result; };
+  reader.readAsDataURL(fileObj);
+}
+
+document.getElementById("imageFile").addEventListener("change", () => {
+  const fileObj = document.getElementById("imageFile").files[0];
+  if (!fileObj) return;
+
+  // ✅ si NO está manual, NO mostrar imagen antes de procesar
+  if (!manualMode.checked) {
+    manualLocked = false;
+    lastPoints = [];
+    highlightedIdx = -1;
+    overlay.innerHTML = "";
+    overlayAll.innerHTML = "";
+    tableDiv.innerHTML = "";
+    downloadImgBtn.disabled = true;
+    downloadXlsxBtn.disabled = true;
+    statusEl.textContent = "Imagen seleccionada. Presiona Procesar.";
+    outImg.src = ""; // ← clave
+    return;
+  }
+
+  // manual sí muestra original
+  loadOriginalImageForManual();
+});
+
+manualMode.addEventListener("change", () => {
+  manualHelp.style.display = manualMode.checked ? "block" : "none";
+  updateNPointsState();
+
+  if (manualMode.checked) {
+    const fileObj = document.getElementById("imageFile").files[0];
+    if (fileObj) loadOriginalImageForManual();
+  } else {
+    // salir manual: ocultar puntos manuales dibujados
+    overlayAll.innerHTML = "";
+    manualLocked = false;
+  }
+});
+
+/* ===================== PROCESAR (si manual => usa puntos manuales) ===================== */
+imageForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const fileObj = document.getElementById("imageFile").files[0];
+  if (!fileObj) {
+    statusEl.textContent = "Selecciona una imagen.";
+    return;
+  }
+
+  const baseName = sanitizeName(getBaseName(fileObj.name));
+
+  const fd = new FormData();
+  fd.append("file", fileObj);
+
+  if (manualMode.checked) {
+    syncNPointsFromManual();
+    fd.append("n", String(lastPoints.length));
+  } else {
+    fd.append("n", document.getElementById("nPoints").value);
+  }
+
+  fd.append("model_id", modelSelect.value);
+
+  if (manualMode.checked) {
+    fd.append("points_json", JSON.stringify(lastPoints));
+  }
+
+  statusEl.textContent = "Procesando imagen...";
+  downloadImgBtn.disabled = true;
+  downloadXlsxBtn.disabled = true;
+
+  const res = await fetch("/process", { method: "POST", body: fd });
+  const data = await res.json();
+
+  if (!res.ok) {
+    statusEl.textContent = "Error: " + (data.error || res.status);
+    return;
+  }
+
+  // mostrar anotada
+  outImg.src = "data:image/png;base64," + data.annotated_image_base64;
+
+  lastImageBase64 = data.annotated_image_base64;
+  lastPoints = data.points || [];
+  lastModelId = modelSelect.value;
+  lastBaseName = baseName;
+
+  // ✅ si procesaste en manual, ya NO se pueden agregar más puntos
+  if (manualMode.checked) {
+    manualLocked = true;
+    statusEl.textContent = "Listo ✅ (Manual bloqueado: ya no puedes agregar más puntos. Cambia de imagen o desmarca/activa manual para reiniciar).";
+  } else {
+    statusEl.textContent = "Listo ✅";
+  }
+
+  // overlays manuales se limpian (ya están dibujados en la imagen retornada)
+  overlayAll.innerHTML = "";
+  overlay.innerHTML = "";
+  highlightedIdx = -1;
+
+  renderTable(lastPoints);
+
+  downloadImgBtn.disabled = false;
+  downloadXlsxBtn.disabled = false;
+});
 
 /* ===================== DESCARGAS ===================== */
 function downloadBase64Image(base64Png, filename = "imagen_anotada.png") {
@@ -524,8 +716,7 @@ function downloadBase64Image(base64Png, filename = "imagen_anotada.png") {
 
 downloadImgBtn.addEventListener("click", () => {
   if (!lastImageBase64) return;
-  const fname = `${lastBaseName || "imagen"} (anotada).png`;
-  downloadBase64Image(lastImageBase64, fname);
+  downloadBase64Image(lastImageBase64, `${lastBaseName || "imagen"} (anotada).png`);
 });
 
 downloadXlsxBtn.addEventListener("click", async () => {
@@ -558,14 +749,7 @@ downloadXlsxBtn.addEventListener("click", async () => {
   URL.revokeObjectURL(url);
 });
 
-
 /* ===================== INTERACCIONES VISOR ===================== */
-viewer.addEventListener("click", (e) => {
-  if (!outImg.src) return;
-  const factor = e.shiftKey ? 1 / 1.25 : 1.25;
-  zoomAt(e.clientX, e.clientY, factor);
-});
-
 viewer.addEventListener("mousedown", (e) => {
   dragging = true;
   startX = e.clientX - offsetX;
@@ -591,9 +775,53 @@ viewer.addEventListener("wheel", (e) => {
   zoomAt(e.clientX, e.clientY, factor);
 }, { passive: false });
 
-resetViewBtn.addEventListener("click", () => {
-  fitToViewerCenter();
+viewer.addEventListener("click", (e) => {
+  if (!outImg.src) return;
+
+  if (manualMode.checked) {
+    // ✅ si ya se procesó, NO dejar agregar más puntos
+    if (manualLocked) return;
+
+    if (e.button !== 0) return;
+
+    const { x, y } = clientToImageCoords(e.clientX, e.clientY);
+    if (!isInsideImage(x, y)) return;
+
+    const nextIdx = getNextIdx(lastPoints);
+    const label = idxToLabelExcel(nextIdx);
+
+    const classes = (AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0)
+      ? AVAILABLE_CLASSES
+      : ["Algas","Coral","Otros organismos","Sustrato inerte","Tape","nan"];
+
+    const p = {
+      idx: nextIdx,
+      label,
+      x, y,
+      x_norm: outImg.naturalWidth ? x / outImg.naturalWidth : 0,
+      y_norm: outImg.naturalHeight ? y / outImg.naturalHeight : 0,
+      pred_label: classes[0] || "",
+      confidence: null,
+      source: "manual"
+    };
+
+    lastPoints.push(p);
+
+    syncNPointsFromManual();
+    renderTable(lastPoints);
+    renderAllManualPoints();
+    highlightPointByIdx(lastPoints.length - 1);
+
+    statusEl.textContent = `Manual: puntos = ${lastPoints.length}. Presiona Procesar cuando termines.`;
+    return;
+  }
+
+  // modo normal: zoom click
+  const factor = e.shiftKey ? 1 / 1.25 : 1.25;
+  zoomAt(e.clientX, e.clientY, factor);
 });
+
+resetViewBtn.addEventListener("click", () => fitToViewerCenter());
 
 outImg.onload = () => {
   fitToViewerCenter();
@@ -601,13 +829,21 @@ outImg.onload = () => {
   overlay.style.width = outImg.naturalWidth + "px";
   overlay.style.height = outImg.naturalHeight + "px";
 
+  overlayAll.style.width = outImg.naturalWidth + "px";
+  overlayAll.style.height = outImg.naturalHeight + "px";
+
   overlay.innerHTML = "";
   highlightedIdx = -1;
+
+  if (manualMode.checked) renderAllManualPoints();
 };
 
 window.addEventListener("resize", () => {
   if (outImg.src) fitToViewerCenter();
 });
+
+/* init */
+updateNPointsState();
 </script>
 
 </body>
