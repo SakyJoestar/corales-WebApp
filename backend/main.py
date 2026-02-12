@@ -1,4 +1,4 @@
-import io, os, uuid, json
+import io, os, uuid, json, base64
 from typing import Optional, Tuple
 
 import numpy as np
@@ -11,6 +11,11 @@ from torchvision import models, transforms
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
+
+from fastapi import Body
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 
 
 # ===================== CONFIG =====================
@@ -25,32 +30,26 @@ CLASSES = [
 ]
 NUM_CLASSES = len(CLASSES)
 
-# Ajusta si quieres más/menos hilos en CPU (4 suele ir bien)
 try:
     torch.set_num_threads(4)
 except Exception:
     pass
 
-MODEL_CACHE = {}  # model_id -> (model, tfm)
+MODEL_CACHE = {}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(BASE_DIR, "outputs")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 MODELS_DIR = os.path.join(BASE_DIR, "models_store")
 
-os.makedirs(OUT_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 app = FastAPI()
 
 
-# ===================== UTIL: LABELS A..Z, AA.. =====================
+# ===================== LABELS A..Z, AA.. =====================
 
 def idx_to_label_excel(idx: int) -> str:
-    """
-    1 -> A, 2 -> B, ... 26 -> Z, 27 -> AA, 28 -> AB, ...
-    """
     label = ""
     while idx > 0:
         idx -= 1
@@ -69,7 +68,7 @@ def generate_random_points(w: int, h: int, n: int, margin: int = 10):
     for i, (x, y) in enumerate(zip(xs, ys), start=1):
         points.append({
             "idx": i,
-            "label": idx_to_label_excel(i),  # ✅ coincide con la imagen
+            "label": idx_to_label_excel(i),
             "x": int(x),
             "y": int(y),
             "x_norm": float(x / w),
@@ -82,9 +81,9 @@ def generate_random_points(w: int, h: int, n: int, margin: int = 10):
 
 def _load_font(font_size: int):
     for fp in [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
-        "/Library/Fonts/Arial.ttf",                         # macOS
-        "C:\\Windows\\Fonts\\arial.ttf"                     # Windows
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/Library/Fonts/Arial.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf"
     ]:
         try:
             return ImageFont.truetype(fp, font_size)
@@ -110,33 +109,35 @@ def draw_points(img: Image.Image, points):
         x, y = p["x"], p["y"]
         label = p.get("label", "")
 
-        # "+"
         draw.line((x - half, y, x + half, y), fill=color, width=width)
         draw.line((x, y - half, x, y + half), fill=color, width=width)
 
-        # texto al lado
         tx, ty = x + half + 4, y - half - 2
         draw.text((tx, ty), label, fill=color, font=font)
 
     return out
 
 
-# ===================== MODEL LOADING =====================
+# ===================== MODEL =====================
 
 def build_model(arch: str, num_classes: int):
     arch = arch.lower()
+
     if arch == "vgg16":
         m = models.vgg16(weights=None)
         m.classifier[6] = nn.Linear(m.classifier[6].in_features, num_classes)
         return m
+
     if arch == "resnet18":
         m = models.resnet18(weights=None)
         m.fc = nn.Linear(m.fc.in_features, num_classes)
         return m
+
     if arch == "alexnet":
         m = models.alexnet(weights=None)
         m.classifier[6] = nn.Linear(m.classifier[6].in_features, num_classes)
         return m
+
     if arch == "mobilenet_v2":
         m = models.mobilenet_v2(weights=None)
         m.classifier[1] = nn.Linear(m.classifier[1].in_features, num_classes)
@@ -148,14 +149,14 @@ def build_model(arch: str, num_classes: int):
 def load_model_by_id(model_id: str):
     cached = MODEL_CACHE.get(model_id)
     if cached is not None:
-        return cached  # (model, tfm)
+        return cached
 
     model_dir = os.path.join(MODELS_DIR, model_id)
     meta_path = os.path.join(model_dir, "meta.json")
     pt_path = os.path.join(model_dir, "best_model.pt")
 
     if not os.path.isfile(meta_path) or not os.path.isfile(pt_path):
-        raise FileNotFoundError(f"Modelo '{model_id}' no encontrado o incompleto")
+        raise FileNotFoundError(f"Modelo '{model_id}' no encontrado")
 
     with open(meta_path, "r", encoding="utf-8") as f:
         meta = json.load(f)
@@ -163,13 +164,12 @@ def load_model_by_id(model_id: str):
     arch = meta.get("model_name", model_id)
     model = build_model(arch, NUM_CLASSES)
 
-    state = torch.load(pt_path, map_location="cpu")  # tu best_state (state_dict)
+    state = torch.load(pt_path, map_location="cpu")
     model.load_state_dict(state)
     model.eval()
-    model.to("cpu")
 
     tfm = transforms.Compose([
-        transforms.Resize((224, 224)),  # tu entrenamiento usa 224
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225]),
@@ -179,9 +179,9 @@ def load_model_by_id(model_id: str):
     return model, tfm
 
 
-# ===================== PATCH + BATCH PRED =====================
+# ===================== PATCH + BATCH =====================
 
-def crop_patch(img: Image.Image, x: int, y: int, size: int = 32) -> Image.Image:
+def crop_patch(img: Image.Image, x: int, y: int, size: int = 32):
     half = size // 2
     left, top = x - half, y - half
     right, bottom = x + half, y + half
@@ -196,10 +196,9 @@ def crop_patch(img: Image.Image, x: int, y: int, size: int = 32) -> Image.Image:
 
 
 @torch.no_grad()
-def predict_points_batch(img: Image.Image, points, model, tfm, patch_size: int = 32):
-    patches = [tfm(crop_patch(img, p["x"], p["y"], size=patch_size)) for p in points]
-    batch = torch.stack(patches, dim=0)  # [N,3,224,224]
-
+def predict_points_batch(img, points, model, tfm):
+    patches = [tfm(crop_patch(img, p["x"], p["y"])) for p in points]
+    batch = torch.stack(patches)
     logits = model(batch)
     probs = torch.softmax(logits, dim=1)
 
@@ -208,7 +207,7 @@ def predict_points_batch(img: Image.Image, points, model, tfm, patch_size: int =
     return pred_idxs, confs
 
 
-# ===================== ROUTES =====================
+# ===================== ROUTE =====================
 
 @app.post("/process")
 async def process(
@@ -216,50 +215,49 @@ async def process(
     n: int = Form(100),
     model_id: str = Form("")
 ):
-    if n < 1 or n > 5000:
-        return JSONResponse({"error": "n fuera de rango (1..5000)"}, status_code=400)
-
     if not model_id:
         return JSONResponse({"error": "Selecciona un modelo"}, status_code=400)
 
     content = await file.read()
-    try:
-        img = Image.open(io.BytesIO(content)).convert("RGB")
-    except Exception:
-        return JSONResponse({"error": "Archivo no es una imagen válida"}, status_code=400)
+    img = Image.open(io.BytesIO(content)).convert("RGB")
 
-    try:
-        model, tfm = load_model_by_id(model_id)
-    except Exception as e:
-        return JSONResponse({"error": f"No pude cargar el modelo: {str(e)}"}, status_code=400)
+    model, tfm = load_model_by_id(model_id)
 
     w, h = img.size
-    points = generate_random_points(w, h, n=n, margin=10)
+    points = generate_random_points(w, h, n=n)
 
-    # ✅ Batch inference (rápido)
-    pred_idxs, confs = predict_points_batch(img, points, model=model, tfm=tfm, patch_size=32)
+    pred_idxs, confs = predict_points_batch(img, points, model, tfm)
 
-    for p, pred_idx, conf in zip(points, pred_idxs, confs):
-        pred_idx = int(pred_idx)
-        p["pred_idx"] = pred_idx
-        p["pred_label"] = CLASSES[pred_idx]
+    for p, idx, conf in zip(points, pred_idxs, confs):
+        p["pred_label"] = CLASSES[int(idx)]
         p["confidence"] = float(conf)
 
     annotated = draw_points(img, points)
-    out_name = f"{uuid.uuid4().hex}.png"
-    annotated.save(os.path.join(OUT_DIR, out_name), format="PNG")
+
+    # 🔥 Convertir a base64 en vez de guardar en disco
+    buffer = io.BytesIO()
+    annotated.save(buffer, format="PNG")
+    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     return {
-        "annotated_image_url": f"/outputs/{out_name}",
-        "points": points,
-        "image_size": {"w": w, "h": h},
-        "model_id_used": model_id
+        "annotated_image_base64": img_base64,
+        "points": points
     }
+
+
+@app.get("/")
+def home():
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/models")
 def list_models():
     items = []
+
+    # Recorre todas las carpetas dentro de models_store
     for folder in os.listdir(MODELS_DIR):
         folder_path = os.path.join(MODELS_DIR, folder)
         if not os.path.isdir(folder_path):
@@ -267,12 +265,14 @@ def list_models():
 
         meta_path = os.path.join(folder_path, "meta.json")
         pt_path = os.path.join(folder_path, "best_model.pt")
+
         if not os.path.isfile(meta_path):
             continue
 
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
 
+        # Asegura campos mínimos
         meta.setdefault("id", folder)
         meta.setdefault("model_name", folder)
 
@@ -285,11 +285,42 @@ def list_models():
     items.sort(key=lambda x: x.get("id", ""))
     return {"models": items}
 
+@app.post("/export/excel")
+def export_excel(payload: dict = Body(...)):
+    points = payload.get("points", [])
+    model_id = payload.get("model_id", "")
 
-@app.get("/")
-def home():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Puntos"
 
+    # Encabezados
+    headers = ["ID", "x", "y", "x_norm", "y_norm", "clase", "conf", "model_id"]
+    ws.append(headers)
 
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-app.mount("/outputs", StaticFiles(directory=OUT_DIR), name="outputs")
+    # Filas
+    for p in points:
+        ws.append([
+            p.get("label", ""),
+            p.get("x", ""),
+            p.get("y", ""),
+            p.get("x_norm", ""),
+            p.get("y_norm", ""),
+            p.get("pred_label", ""),
+            p.get("confidence", ""),
+            model_id
+        ])
+
+    # Ajuste simple de ancho de columnas
+    for col_idx, h in enumerate(headers, start=1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = max(12, len(h) + 2)
+
+    bio = io.BytesIO()
+    wb.save(bio)
+    bio.seek(0)
+
+    return StreamingResponse(
+        bio,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="puntos_coral.xlsx"'}
+    )

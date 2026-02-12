@@ -45,7 +45,7 @@ input[type="number"] { width: 90px; }
 
 table {
   border-collapse: collapse;
-  width: 420px;
+  width: 520px;
   max-width: 100%;
   font-size: 14px;
 }
@@ -123,6 +123,9 @@ th {
 
     <div class="toolbar" style="margin-bottom:8px;">
       <button id="resetViewBtn" type="button">Reiniciar vista</button>
+      <button id="downloadImgBtn" type="button" disabled>Descargar imagen</button>
+      <button id="downloadXlsxBtn" type="button" disabled>Descargar Excel</button>
+
       <div class="help-text" style="margin:0;">
         Click: zoom + | Shift+Click: zoom - | Arrastrar: mover | Rueda: zoom
       </div>
@@ -134,7 +137,8 @@ th {
   </div>
 
   <div class="card">
-    <h3>Tabla de puntos</h3>
+    <h3>Tabla de puntos (editable)</h3>
+    <div class="help-text">Puedes cambiar la clase manualmente con el selector. Al editar, la conf se limpia y el origen pasa a “manual”.</div>
     <div id="table"></div>
   </div>
 
@@ -143,6 +147,7 @@ th {
 <script>
 /* ===================== MODELOS ===================== */
 const modelSelect = document.getElementById("modelSelect");
+let AVAILABLE_CLASSES = [];
 
 async function loadModels() {
   modelSelect.innerHTML = "";
@@ -154,7 +159,13 @@ async function loadModels() {
     opt.value = "";
     opt.textContent = "(Sin modelos)";
     modelSelect.appendChild(opt);
+    AVAILABLE_CLASSES = [];
     return;
+  }
+
+  // usar las clases que vienen del backend (asumimos iguales para todos)
+  if (Array.isArray(data.models[0].classes)) {
+    AVAILABLE_CLASSES = data.models[0].classes;
   }
 
   for (const m of data.models) {
@@ -167,10 +178,14 @@ async function loadModels() {
 window.addEventListener("DOMContentLoaded", loadModels);
 
 
-/* ===================== TABLA ===================== */
+/* ===================== TABLA (EDITABLE) ===================== */
 const tableDiv = document.getElementById("table");
 
 function renderTable(points) {
+  const classes = (AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0)
+    ? AVAILABLE_CLASSES
+    : ["Algas","Coral","Otros organismos","Sustrato inerte","Tape","nan"];
+
   let html = `
     <table>
       <thead>
@@ -180,25 +195,72 @@ function renderTable(points) {
           <th>y</th>
           <th>clase</th>
           <th>conf</th>
+          <th>origen</th>
         </tr>
       </thead>
       <tbody>
   `;
 
-  for (const p of points) {
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const current = p.pred_label ?? "";
+
+    const options = classes.map(c => {
+      const sel = c === current ? "selected" : "";
+      return `<option value="${c}" ${sel}>${c}</option>`;
+    }).join("");
+
     html += `
-      <tr>
+      <tr data-idx="${i}">
         <td>${p.label ?? ""}</td>
         <td>${p.x}</td>
         <td>${p.y}</td>
-        <td>${p.pred_label ?? ""}</td>
-        <td>${p.confidence != null ? p.confidence.toFixed(3) : ""}</td>
+
+        <td>
+          <select class="classSelect">
+            ${options}
+          </select>
+        </td>
+
+        <td class="confCell">${p.confidence != null ? Number(p.confidence).toFixed(3) : ""}</td>
+        <td class="srcCell">${p.source ?? "modelo"}</td>
       </tr>
     `;
   }
 
   html += "</tbody></table>";
   tableDiv.innerHTML = html;
+
+  // Al cambiar clase, actualizar lastPoints
+  tableDiv.querySelectorAll("select.classSelect").forEach(sel => {
+    sel.addEventListener("change", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      const newClass = e.target.value;
+
+      if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
+
+      lastPoints[idx].pred_label = newClass;
+      lastPoints[idx].source = "manual";
+
+      // Al editar: limpiar confidence (opcional)
+      lastPoints[idx].confidence = null;
+      tr.querySelector(".confCell").textContent = "";
+      tr.querySelector(".srcCell").textContent = "manual";
+    });
+  });
+}
+
+
+/* ===================== HELPERS NOMBRE ARCHIVO ===================== */
+function getBaseName(filename) {
+  const justName = (filename || "").split(/[/\\]/).pop();
+  const dot = justName.lastIndexOf(".");
+  return dot > 0 ? justName.slice(0, dot) : (justName || "imagen");
+}
+
+function sanitizeName(name) {
+  return (name || "imagen").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim() || "imagen";
 }
 
 
@@ -207,17 +269,42 @@ const imageForm = document.getElementById("imageForm");
 const statusEl = document.getElementById("status");
 const outImg = document.getElementById("outImg");
 
+const downloadImgBtn = document.getElementById("downloadImgBtn");
+const downloadXlsxBtn = document.getElementById("downloadXlsxBtn");
+
+let lastImageBase64 = "";
+let lastPoints = [];
+let lastModelId = "";
+let lastBaseName = "";
+
 imageForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
+  const fileObj = document.getElementById("imageFile").files[0];
+  if (!fileObj) {
+    statusEl.textContent = "Selecciona una imagen.";
+    return;
+  }
+
+  const baseName = sanitizeName(getBaseName(fileObj.name));
+
   const fd = new FormData();
-  fd.append("file", document.getElementById("imageFile").files[0]);
+  fd.append("file", fileObj);
   fd.append("n", document.getElementById("nPoints").value);
   fd.append("model_id", modelSelect.value);
 
+  // limpiar + deshabilitar
   statusEl.textContent = "Procesando imagen...";
   tableDiv.innerHTML = "";
   outImg.src = "";
+
+  downloadImgBtn.disabled = true;
+  downloadXlsxBtn.disabled = true;
+
+  lastImageBase64 = "";
+  lastPoints = [];
+  lastModelId = "";
+  lastBaseName = "";
 
   const res = await fetch("/process", { method: "POST", body: fd });
   const data = await res.json();
@@ -227,8 +314,19 @@ imageForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  outImg.src = data.annotated_image_url + "?t=" + Date.now();
-  renderTable(data.points);
+  outImg.src = "data:image/png;base64," + data.annotated_image_base64;
+
+  // guardar resultados (importante antes de render para que el edit funcione)
+  lastImageBase64 = data.annotated_image_base64;
+  lastPoints = data.points || [];
+  lastModelId = modelSelect.value;
+  lastBaseName = baseName;
+
+  renderTable(lastPoints);
+
+  downloadImgBtn.disabled = false;
+  downloadXlsxBtn.disabled = false;
+
   statusEl.textContent = "Listo ✅";
 });
 
@@ -253,7 +351,6 @@ function clampScale(s) {
   return Math.min(10, Math.max(0.05, s));
 }
 
-/* ✅ Fit + centrar: que la imagen quepa en el viewer */
 function fitToViewerCenter() {
   if (!outImg.naturalWidth || !outImg.naturalHeight) return;
 
@@ -262,11 +359,9 @@ function fitToViewerCenter() {
   const iw = outImg.naturalWidth;
   const ih = outImg.naturalHeight;
 
-  // escala para que quepa completa
   const s = Math.min(vw / iw, vh / ih);
   scale = clampScale(s);
 
-  // centrar
   offsetX = (vw - iw * scale) / 2;
   offsetY = (vh - ih * scale) / 2;
 
@@ -290,14 +385,61 @@ function zoomAt(clientX, clientY, factor) {
   applyTransform();
 }
 
-/* Click zoom in, Shift+Click zoom out */
+
+/* ===================== DESCARGAS ===================== */
+function downloadBase64Image(base64Png, filename = "imagen_anotada.png") {
+  const a = document.createElement("a");
+  a.href = "data:image/png;base64," + base64Png;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+downloadImgBtn.addEventListener("click", () => {
+  if (!lastImageBase64) return;
+  const fname = `${lastBaseName || "imagen"} (anotada).png`;
+  downloadBase64Image(lastImageBase64, fname);
+});
+
+downloadXlsxBtn.addEventListener("click", async () => {
+  if (!lastPoints || lastPoints.length === 0) return;
+
+  const res = await fetch("/export/excel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      points: lastPoints,
+      model_id: lastModelId
+    }),
+  });
+
+  if (!res.ok) {
+    alert("Error descargando Excel");
+    return;
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${lastBaseName || "imagen"} (tabla).xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+});
+
+
+/* ===================== INTERACCIONES VISOR ===================== */
 viewer.addEventListener("click", (e) => {
   if (!outImg.src) return;
   const factor = e.shiftKey ? 1 / 1.25 : 1.25;
   zoomAt(e.clientX, e.clientY, factor);
 });
 
-/* Arrastrar */
 viewer.addEventListener("mousedown", (e) => {
   dragging = true;
   startX = e.clientX - offsetX;
@@ -317,24 +459,20 @@ window.addEventListener("mouseup", () => {
   viewer.style.cursor = "grab";
 });
 
-/* Wheel opcional */
 viewer.addEventListener("wheel", (e) => {
   e.preventDefault();
   const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
   zoomAt(e.clientX, e.clientY, factor);
 }, { passive: false });
 
-/* ✅ Botón reset */
 resetViewBtn.addEventListener("click", () => {
   fitToViewerCenter();
 });
 
-/* ✅ Al cargar la imagen: ajustar y centrar */
 outImg.onload = () => {
   fitToViewerCenter();
 };
 
-/* ✅ Si cambia tamaño de ventana: re-centrar (opcional) */
 window.addEventListener("resize", () => {
   if (outImg.src) fitToViewerCenter();
 });
