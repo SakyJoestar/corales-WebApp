@@ -45,7 +45,7 @@ input[type="number"] { width: 90px; }
 
 table {
   border-collapse: collapse;
-  width: 520px;
+  width: 560px;
   max-width: 100%;
   font-size: 14px;
 }
@@ -92,6 +92,67 @@ th {
   color: #666;
   margin-bottom: 8px;
 }
+
+/* Overlay encima de la imagen (para resaltar puntos) */
+#overlay{
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* Marcador llamativo (amarillo neón) */
+:root{
+  --hl: #ffe600; /* amarillo neón */
+}
+
+.highlight-marker{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.highlight-marker .hline,
+.highlight-marker .vline{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--hl);
+  box-shadow: 0 0 14px rgba(255,230,0,0.95), 0 0 4px rgba(0,0,0,0.6);
+}
+
+.highlight-marker .hline{
+  width: 38px;
+  height: 5px;
+  border-radius: 4px;
+}
+
+.highlight-marker .vline{
+  width: 5px;
+  height: 38px;
+  border-radius: 4px;
+}
+
+.highlight-marker .hlabel{
+  position: absolute;
+  left: 20px;
+  top: -20px;
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--hl);
+  text-shadow: 0 0 14px rgba(255,230,0,0.95), 0 0 2px rgba(0,0,0,0.9);
+  white-space: nowrap;
+}
+
+/* Resaltado de fila seleccionada */
+.row-highlight{
+  outline: 2px solid var(--hl);
+  outline-offset: -2px;
+  background: rgba(255,230,0,0.12);
+}
 </style>
 </head>
 
@@ -133,12 +194,13 @@ th {
 
     <div id="viewer">
       <img id="outImg" />
+      <div id="overlay"></div>
     </div>
   </div>
 
   <div class="card">
     <h3>Tabla de puntos (editable)</h3>
-    <div class="help-text">Puedes cambiar la clase manualmente con el selector. Al editar, la conf se limpia y el origen pasa a “manual”.</div>
+    <div class="help-text">Puedes cambiar la clase manualmente con el selector. Click en la letra (ID) para resaltar y hacer zoom al punto.</div>
     <div id="table"></div>
   </div>
 
@@ -163,7 +225,6 @@ async function loadModels() {
     return;
   }
 
-  // usar las clases que vienen del backend (asumimos iguales para todos)
   if (Array.isArray(data.models[0].classes)) {
     AVAILABLE_CLASSES = data.models[0].classes;
   }
@@ -178,7 +239,7 @@ async function loadModels() {
 window.addEventListener("DOMContentLoaded", loadModels);
 
 
-/* ===================== TABLA (EDITABLE) ===================== */
+/* ===================== TABLA (EDITABLE + CLICK HIGHLIGHT) ===================== */
 const tableDiv = document.getElementById("table");
 
 function renderTable(points) {
@@ -212,7 +273,9 @@ function renderTable(points) {
 
     html += `
       <tr data-idx="${i}">
-        <td>${p.label ?? ""}</td>
+        <td class="idCell" style="cursor:pointer; font-weight:700; text-decoration:underline;">
+          ${p.label ?? ""}
+        </td>
         <td>${p.x}</td>
         <td>${p.y}</td>
 
@@ -247,6 +310,15 @@ function renderTable(points) {
       lastPoints[idx].confidence = null;
       tr.querySelector(".confCell").textContent = "";
       tr.querySelector(".srcCell").textContent = "manual";
+    });
+  });
+
+  // Click en la letra/ID para resaltar + zoom
+  tableDiv.querySelectorAll("td.idCell").forEach(td => {
+    td.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      highlightAndZoomToIdx(idx);
     });
   });
 }
@@ -293,7 +365,6 @@ imageForm.addEventListener("submit", async (e) => {
   fd.append("n", document.getElementById("nPoints").value);
   fd.append("model_id", modelSelect.value);
 
-  // limpiar + deshabilitar
   statusEl.textContent = "Procesando imagen...";
   tableDiv.innerHTML = "";
   outImg.src = "";
@@ -306,6 +377,9 @@ imageForm.addEventListener("submit", async (e) => {
   lastModelId = "";
   lastBaseName = "";
 
+  overlay.innerHTML = "";
+  highlightedIdx = -1;
+
   const res = await fetch("/process", { method: "POST", body: fd });
   const data = await res.json();
 
@@ -316,7 +390,6 @@ imageForm.addEventListener("submit", async (e) => {
 
   outImg.src = "data:image/png;base64," + data.annotated_image_base64;
 
-  // guardar resultados (importante antes de render para que el edit funcione)
   lastImageBase64 = data.annotated_image_base64;
   lastPoints = data.points || [];
   lastModelId = modelSelect.value;
@@ -334,6 +407,8 @@ imageForm.addEventListener("submit", async (e) => {
 /* ===================== ZOOM + PAN (CLICK) ===================== */
 const viewer = document.getElementById("viewer");
 const resetViewBtn = document.getElementById("resetViewBtn");
+const overlay = document.getElementById("overlay");
+let highlightedIdx = -1;
 
 let scale = 1;
 let offsetX = 0;
@@ -344,7 +419,9 @@ let startX = 0;
 let startY = 0;
 
 function applyTransform() {
-  outImg.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  const t = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  outImg.style.transform = t;
+  overlay.style.transform = t;
 }
 
 function clampScale(s) {
@@ -383,6 +460,55 @@ function zoomAt(clientX, clientY, factor) {
   scale = newScale;
 
   applyTransform();
+}
+
+/* ===================== HIGHLIGHT + AUTO ZOOM ===================== */
+function highlightPointByIdx(idx) {
+  if (!lastPoints || idx < 0 || idx >= lastPoints.length) return;
+
+  highlightedIdx = idx;
+  overlay.innerHTML = "";
+
+  const p = lastPoints[idx];
+
+  const marker = document.createElement("div");
+  marker.className = "highlight-marker";
+  marker.style.left = p.x + "px";
+  marker.style.top = p.y + "px";
+  marker.innerHTML = `
+    <div class="hline"></div>
+    <div class="vline"></div>
+    <div class="hlabel">${p.label ?? ""}</div>
+  `;
+  overlay.appendChild(marker);
+
+  tableDiv.querySelectorAll("tr").forEach(tr => tr.classList.remove("row-highlight"));
+  const tr = tableDiv.querySelector(`tr[data-idx="${idx}"]`);
+  if (tr) tr.classList.add("row-highlight");
+}
+
+/* Centra el punto en el viewer y aplica un zoom mínimo objetivo */
+function zoomToPoint(p, targetScale = 2.6) {
+  const vw = viewer.clientWidth;
+  const vh = viewer.clientHeight;
+
+  // No bajar el zoom si ya estás más cerca
+  const newScale = clampScale(Math.max(scale, targetScale));
+  scale = newScale;
+
+  // Queremos que el punto (p.x, p.y) quede al centro del viewer:
+  // vx = offsetX + p.x * scale  => offsetX = vx - p.x*scale
+  // vy = offsetY + p.y * scale  => offsetY = vy - p.y*scale
+  offsetX = (vw / 2) - (p.x * scale);
+  offsetY = (vh / 2) - (p.y * scale);
+
+  applyTransform();
+}
+
+function highlightAndZoomToIdx(idx) {
+  if (!lastPoints || idx < 0 || idx >= lastPoints.length) return;
+  highlightPointByIdx(idx);
+  zoomToPoint(lastPoints[idx], 2.6);
 }
 
 
@@ -471,6 +597,12 @@ resetViewBtn.addEventListener("click", () => {
 
 outImg.onload = () => {
   fitToViewerCenter();
+
+  overlay.style.width = outImg.naturalWidth + "px";
+  overlay.style.height = outImg.naturalHeight + "px";
+
+  overlay.innerHTML = "";
+  highlightedIdx = -1;
 };
 
 window.addEventListener("resize", () => {
