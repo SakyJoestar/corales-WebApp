@@ -1,0 +1,162 @@
+import { dom } from "./dom.js";
+import {
+  AVAILABLE_CLASSES,
+  lastPoints,
+  setLastPoints,
+  highlightedIdx,
+  setHighlightedIdx,
+} from "./state.js";
+import { zoomToPoint } from "./viewer.js";
+import { updateManualButtons, syncNPointsFromManual } from "./state.js";
+
+export function renderAllManualPoints() {
+  dom.overlayAll.innerHTML = "";
+  if (!dom.manualMode.checked) return;
+
+  for (const p of lastPoints) {
+    const el = document.createElement("div");
+    el.className = "manual-point";
+    el.style.left = p.x + "px";
+    el.style.top = p.y + "px";
+    el.innerHTML = `
+      <div class="hline"></div>
+      <div class="vline"></div>
+      <div class="mlabel">${p.label ?? ""}</div>
+    `;
+    dom.overlayAll.appendChild(el);
+  }
+}
+
+export function highlightPointByIdx(idx) {
+  if (!lastPoints || idx < 0 || idx >= lastPoints.length) return;
+
+  setHighlightedIdx(idx);
+  dom.overlay.innerHTML = "";
+
+  const p = lastPoints[idx];
+  const marker = document.createElement("div");
+  marker.className = "highlight-marker";
+  marker.style.left = p.x + "px";
+  marker.style.top = p.y + "px";
+  marker.innerHTML = `
+    <div class="hline"></div>
+    <div class="vline"></div>
+    <div class="hlabel">${p.label ?? ""}</div>
+  `;
+  dom.overlay.appendChild(marker);
+
+  dom.tableDiv.querySelectorAll("tr").forEach(tr => tr.classList.remove("row-highlight"));
+  const tr = dom.tableDiv.querySelector(`tr[data-idx="${idx}"]`);
+  if (tr) tr.classList.add("row-highlight");
+}
+
+export function highlightAndZoomToIdx(idx) {
+  if (!lastPoints || idx < 0 || idx >= lastPoints.length) return;
+  highlightPointByIdx(idx);
+  zoomToPoint(lastPoints[idx], 2.6);
+}
+
+export function renderTable(points) {
+  const classes = (AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0)
+    ? AVAILABLE_CLASSES
+    : ["Algas","Coral","Otros organismos","Sustrato inerte","Tape","nan"];
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>x</th>
+          <th>y</th>
+          <th>clase</th>
+          <th>conf</th>
+          <th>origen</th>
+          <th>acción</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const current = p.pred_label ?? (classes[0] ?? "");
+
+    const options = classes.map(c => {
+      const sel = c === current ? "selected" : "";
+      return `<option value="${c}" ${sel}>${c}</option>`;
+    }).join("");
+
+    const origin = (p.source ?? "modelo");
+    const originBadge = origin.startsWith("manual")
+      ? `<span class="badge manual">${origin}</span>`
+      : `<span class="badge">${origin}</span>`;
+
+    html += `
+      <tr data-idx="${i}">
+        <td class="idCell" style="cursor:pointer; font-weight:700; text-decoration:underline;">
+          ${p.label ?? ""}
+        </td>
+        <td>${p.x}</td>
+        <td>${p.y}</td>
+        <td><select class="classSelect">${options}</select></td>
+        <td class="confCell">${p.confidence != null ? Number(p.confidence).toFixed(3) : ""}</td>
+        <td class="srcCell">${originBadge}</td>
+        <td><button type="button" class="delBtn">Eliminar</button></td>
+      </tr>
+    `;
+  }
+
+  html += "</tbody></table>";
+  dom.tableDiv.innerHTML = html;
+
+  // change clase
+  dom.tableDiv.querySelectorAll("select.classSelect").forEach(sel => {
+    sel.addEventListener("change", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      const newClass = e.target.value;
+
+      if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
+
+      lastPoints[idx].pred_label = newClass;
+
+      const prev = String(lastPoints[idx].source || "modelo");
+      if (!prev.startsWith("manual")) lastPoints[idx].source = "manual-edit";
+      else if (prev === "manual") lastPoints[idx].source = "manual-edit";
+
+      lastPoints[idx].confidence = null;
+      tr.querySelector(".confCell").textContent = "";
+      tr.querySelector(".srcCell").innerHTML = `<span class="badge manual">${lastPoints[idx].source}</span>`;
+    });
+  });
+
+  // click id highlight + zoom
+  dom.tableDiv.querySelectorAll("td.idCell").forEach(td => {
+    td.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      highlightAndZoomToIdx(idx);
+    });
+  });
+
+  // delete row
+  dom.tableDiv.querySelectorAll("button.delBtn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const tr = e.target.closest("tr");
+      const idx = Number(tr.dataset.idx);
+      if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
+
+      if (highlightedIdx === idx) {
+        dom.overlay.innerHTML = "";
+        setHighlightedIdx(-1);
+      }
+
+      lastPoints.splice(idx, 1);
+      setLastPoints(lastPoints); // mantiene binding consistente
+      syncNPointsFromManual();
+      renderTable(lastPoints);
+      renderAllManualPoints();
+      updateManualButtons();
+    });
+  });
+}
