@@ -52,7 +52,6 @@ table {
 th, td { border: 1px solid #ddd; padding: 6px 8px; }
 th { background: #f0f0f0; text-align: left; }
 
-/* VISOR */
 #viewer {
   width: min(1200px, 98vw);
   height: 75vh;
@@ -73,7 +72,6 @@ th { background: #f0f0f0; text-align: left; }
   -webkit-user-drag: none;
 }
 
-/* Overlay de highlight (amarillo) */
 #overlay{
   position: absolute;
   left: 0;
@@ -82,7 +80,6 @@ th { background: #f0f0f0; text-align: left; }
   pointer-events: none;
 }
 
-/* Overlay para mostrar TODOS los puntos manuales */
 #overlayAll{
   position: absolute;
   left: 0;
@@ -176,27 +173,33 @@ th { background: #f0f0f0; text-align: left; }
 <h2>Coral – Sistema de marcado de puntos</h2>
 
 <div class="card">
-  <h3>Procesar imagen</h3>
+  <h3>Procesar imagen(es)</h3>
 
   <form id="imageForm" class="toolbar">
-    <input type="file" id="imageFile" accept="image/*" required />
+    <!-- ✅ multiple -->
+    <input type="file" id="imageFile" accept="image/*" multiple required />
+    <span class="help-text" id="fileCount"></span>
 
     <label>Modelo:</label>
     <select id="modelSelect"></select>
 
-    <label>N puntos:</label>
+    <label>N puntos (por imagen):</label>
     <input type="number" id="nPoints" value="100" min="1" max="5000" />
 
     <label class="badge manual" style="display:flex; gap:6px; align-items:center;">
       <input type="checkbox" id="manualMode" />
-      Manual
+      Manual (solo 1 imagen)
     </label>
 
     <button type="submit">Procesar</button>
   </form>
 
   <div class="help-text" id="manualHelp" style="display:none;">
-    ✅ Manual activado: se muestra la imagen SIN puntos. Click izquierdo agrega puntos. Elimina con “Eliminar”. Luego presiona “Procesar” para clasificar y dibujar.
+    ✅ Manual activado (solo 1 imagen): se muestra la imagen SIN puntos. Click izquierdo agrega puntos. Elimina con “Eliminar”. Luego presiona “Procesar”.
+  </div>
+
+  <div class="help-text" id="batchHelp" style="display:none;">
+    ✅ Modo múltiple: solo automático. Se generará un ZIP con las imágenes anotadas y un Excel con una hoja por imagen.
   </div>
 
   <div id="status"></div>
@@ -205,7 +208,7 @@ th { background: #f0f0f0; text-align: left; }
 <div class="row">
 
   <div class="card">
-    <h3>Imagen</h3>
+    <h3>Imagen (solo cuando es 1)</h3>
 
     <div class="toolbar" style="margin-bottom:8px;">
       <button id="resetViewBtn" type="button">Reiniciar vista</button>
@@ -225,7 +228,7 @@ th { background: #f0f0f0; text-align: left; }
   </div>
 
   <div class="card">
-    <h3>Tabla de puntos (editable)</h3>
+    <h3>Tabla (solo cuando es 1)</h3>
     <div class="help-text">Click en ID para resaltar y hacer zoom. En manual, cada click agrega un punto.</div>
     <div id="table"></div>
   </div>
@@ -280,9 +283,12 @@ const downloadXlsxBtn = document.getElementById("downloadXlsxBtn");
 
 const manualMode = document.getElementById("manualMode");
 const manualHelp = document.getElementById("manualHelp");
+const batchHelp = document.getElementById("batchHelp");
 const nPointsInput = document.getElementById("nPoints");
+const fileCount = document.getElementById("fileCount");
+const imageFile = document.getElementById("imageFile");
 
-/* ✅ NUEVO: bloquear añadir puntos después de procesar en manual */
+/* ✅ bloquear añadir puntos después de procesar en manual */
 let manualLocked = false;
 
 /* ===================== ESTADO GENERAL ===================== */
@@ -385,6 +391,7 @@ function isInsideImage(x, y) {
 
 /* ===================== BLOQUEO INPUT N EN MANUAL ===================== */
 function updateNPointsState() {
+  // En manual, N se calcula, por eso se deshabilita
   nPointsInput.disabled = manualMode.checked;
   if (manualMode.checked) {
     nPointsInput.style.background = "#eee";
@@ -399,7 +406,6 @@ function updateNPointsState() {
 function syncNPointsFromManual() {
   nPointsInput.value = String(lastPoints.length);
 }
-
 function renderAllManualPoints() {
   overlayAll.innerHTML = "";
   if (!manualMode.checked) return;
@@ -511,7 +517,6 @@ function renderTable(points) {
   html += "</tbody></table>";
   tableDiv.innerHTML = html;
 
-  // editar clase
   tableDiv.querySelectorAll("select.classSelect").forEach(sel => {
     sel.addEventListener("change", (e) => {
       const tr = e.target.closest("tr");
@@ -531,7 +536,6 @@ function renderTable(points) {
     });
   });
 
-  // click ID => highlight + zoom
   tableDiv.querySelectorAll("td.idCell").forEach(td => {
     td.addEventListener("click", (e) => {
       const tr = e.target.closest("tr");
@@ -540,7 +544,6 @@ function renderTable(points) {
     });
   });
 
-  // eliminar punto
   tableDiv.querySelectorAll("button.delBtn").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const tr = e.target.closest("tr");
@@ -560,29 +563,29 @@ function renderTable(points) {
   });
 }
 
-/* ===================== UTIL: limpiar vista (no mostrar imagen) ===================== */
-function clearPreview() {
+/* ===================== LIMPIAR PREVIEW (no mostrar nada antes de procesar) ===================== */
+function clearSinglePreview() {
   outImg.src = "";
   overlay.innerHTML = "";
   overlayAll.innerHTML = "";
   highlightedIdx = -1;
-
-  // no tocamos nPoints si no manual (queda para random)
   tableDiv.innerHTML = "";
   downloadImgBtn.disabled = true;
   downloadXlsxBtn.disabled = true;
 }
 
-/* ===================== MODO MANUAL: PREVIEW SIN PUNTOS ===================== */
+/* ===================== MODO MANUAL: PREVIEW SIN PUNTOS (solo 1) ===================== */
 function loadOriginalImageForManual() {
-  const fileObj = document.getElementById("imageFile").files[0];
-  if (!fileObj) return;
+  const files = imageFile.files;
+  if (!files || files.length !== 1) return;
 
-  manualLocked = false; // ✅ si cambias de imagen o entras manual, se vuelve a permitir marcar
+  const fileObj = files[0];
+  manualLocked = false;
 
   statusEl.textContent = "Manual: imagen cargada. Click para agregar puntos y luego presiona Procesar.";
   downloadImgBtn.disabled = true;
   downloadXlsxBtn.disabled = true;
+
   lastImageBase64 = "";
   lastModelId = modelSelect.value || "";
   lastBaseName = sanitizeName(getBaseName(fileObj.name));
@@ -600,70 +603,148 @@ function loadOriginalImageForManual() {
   reader.readAsDataURL(fileObj);
 }
 
-document.getElementById("imageFile").addEventListener("change", () => {
-  const fileObj = document.getElementById("imageFile").files[0];
-  if (!fileObj) return;
+/* ===================== FILE INPUT CHANGE ===================== */
+imageFile.addEventListener("change", () => {
+  const files = imageFile.files ? Array.from(imageFile.files) : [];
+  fileCount.textContent = files.length ? `${files.length} archivo(s) seleccionado(s)` : "";
 
-  // ✅ si NO está manual, NO mostrar imagen antes de procesar
-  if (!manualMode.checked) {
-    manualLocked = false;
-    lastPoints = [];
-    highlightedIdx = -1;
-    overlay.innerHTML = "";
-    overlayAll.innerHTML = "";
-    tableDiv.innerHTML = "";
-    downloadImgBtn.disabled = true;
-    downloadXlsxBtn.disabled = true;
-    statusEl.textContent = "Imagen seleccionada. Presiona Procesar.";
-    outImg.src = ""; // ← clave
+  // Validación simple
+  if (files.length > 25) {
+    statusEl.textContent = "Error: Máximo 25 imágenes.";
+    imageFile.value = "";
+    fileCount.textContent = "";
+    clearSinglePreview();
+    manualMode.checked = false;
+    manualHelp.style.display = "none";
+    batchHelp.style.display = "none";
+    updateNPointsState();
     return;
   }
 
-  // manual sí muestra original
-  loadOriginalImageForManual();
-});
+  // MODO MÚLTIPLE (batch)
+  if (files.length > 1) {
+    // forzar automático
+    manualMode.checked = false;
+    manualHelp.style.display = "none";
+    batchHelp.style.display = "block";
+    updateNPointsState();
 
-manualMode.addEventListener("change", () => {
-  manualHelp.style.display = manualMode.checked ? "block" : "none";
+    clearSinglePreview();
+    statusEl.textContent = "Imágenes seleccionadas. Presiona Procesar para descargar el ZIP.";
+    return;
+  }
+
+  // 1 imagen
+  batchHelp.style.display = "none";
   updateNPointsState();
 
-  if (manualMode.checked) {
-    const fileObj = document.getElementById("imageFile").files[0];
-    if (fileObj) loadOriginalImageForManual();
-  } else {
-    // salir manual: ocultar puntos manuales dibujados
-    overlayAll.innerHTML = "";
-    manualLocked = false;
+  // si NO manual: no mostrar antes de procesar
+  if (!manualMode.checked) {
+    clearSinglePreview();
+    statusEl.textContent = files.length === 1 ? "Imagen seleccionada. Presiona Procesar." : "";
+    return;
+  }
+
+  // si manual: mostrar original para marcar
+  if (files.length === 1) {
+    manualHelp.style.display = "block";
+    loadOriginalImageForManual();
   }
 });
 
-/* ===================== PROCESAR (si manual => usa puntos manuales) ===================== */
+/* ===================== MANUAL CHECK CHANGE ===================== */
+manualMode.addEventListener("change", () => {
+  const files = imageFile.files ? Array.from(imageFile.files) : [];
+  // Manual solo tiene sentido con 1 imagen
+  if (files.length !== 1 && manualMode.checked) {
+    manualMode.checked = false;
+  }
+
+  manualHelp.style.display = (manualMode.checked && files.length === 1) ? "block" : "none";
+  batchHelp.style.display = (files.length > 1) ? "block" : "none";
+  updateNPointsState();
+
+  if (manualMode.checked && files.length === 1) {
+    loadOriginalImageForManual();
+  } else {
+    // si desmarcas manual y hay 1 imagen, no mostrarla hasta procesar
+    if (files.length === 1) {
+      clearSinglePreview();
+      statusEl.textContent = "Imagen seleccionada. Presiona Procesar.";
+    }
+  }
+});
+
+/* ===================== SUBMIT ===================== */
 imageForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const fileObj = document.getElementById("imageFile").files[0];
-  if (!fileObj) {
-    statusEl.textContent = "Selecciona una imagen.";
+  const files = imageFile.files ? Array.from(imageFile.files) : [];
+  if (files.length === 0) {
+    statusEl.textContent = "Selecciona al menos 1 imagen.";
     return;
   }
 
+  if (!modelSelect.value) {
+    statusEl.textContent = "Selecciona un modelo.";
+    return;
+  }
+
+  const n = Number(nPointsInput.value || 0);
+  if (!Number.isFinite(n) || n < 1) {
+    statusEl.textContent = "N puntos debe ser >= 1.";
+    return;
+  }
+
+  // ====== BATCH ======
+  if (files.length > 1) {
+    statusEl.textContent = `Procesando ${files.length} imágenes... (esto puede tardar)`;
+    clearSinglePreview();
+
+    const fd = new FormData();
+    for (const f of files) fd.append("files", f);
+    fd.append("n", String(n));
+    fd.append("model_id", modelSelect.value);
+
+    const res = await fetch("/process_batch", { method: "POST", body: fd });
+    if (!res.ok) {
+      let msg = "Error procesando batch";
+      try { msg = (await res.json()).error || msg; } catch {}
+      statusEl.textContent = "Error: " + msg;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "resultados_coral.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    statusEl.textContent = "Listo ✅ ZIP descargado.";
+    return;
+  }
+
+  // ====== SINGLE ======
+  const fileObj = files[0];
   const baseName = sanitizeName(getBaseName(fileObj.name));
 
   const fd = new FormData();
   fd.append("file", fileObj);
 
   if (manualMode.checked) {
+    // n = puntos manuales (bloqueado)
     syncNPointsFromManual();
     fd.append("n", String(lastPoints.length));
+    fd.append("points_json", JSON.stringify(lastPoints));
   } else {
-    fd.append("n", document.getElementById("nPoints").value);
+    fd.append("n", String(n));
   }
 
   fd.append("model_id", modelSelect.value);
-
-  if (manualMode.checked) {
-    fd.append("points_json", JSON.stringify(lastPoints));
-  }
 
   statusEl.textContent = "Procesando imagen...";
   downloadImgBtn.disabled = true;
@@ -677,7 +758,6 @@ imageForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  // mostrar anotada
   outImg.src = "data:image/png;base64," + data.annotated_image_base64;
 
   lastImageBase64 = data.annotated_image_base64;
@@ -685,15 +765,9 @@ imageForm.addEventListener("submit", async (e) => {
   lastModelId = modelSelect.value;
   lastBaseName = baseName;
 
-  // ✅ si procesaste en manual, ya NO se pueden agregar más puntos
-  if (manualMode.checked) {
-    manualLocked = true;
-    statusEl.textContent = "Listo ✅ (Manual bloqueado: ya no puedes agregar más puntos. Cambia de imagen o desmarca/activa manual para reiniciar).";
-  } else {
-    statusEl.textContent = "Listo ✅";
-  }
+  // si procesaste en manual, bloquear nuevos puntos
+  if (manualMode.checked) manualLocked = true;
 
-  // overlays manuales se limpian (ya están dibujados en la imagen retornada)
   overlayAll.innerHTML = "";
   overlay.innerHTML = "";
   highlightedIdx = -1;
@@ -702,9 +776,11 @@ imageForm.addEventListener("submit", async (e) => {
 
   downloadImgBtn.disabled = false;
   downloadXlsxBtn.disabled = false;
+
+  statusEl.textContent = "Listo ✅";
 });
 
-/* ===================== DESCARGAS ===================== */
+/* ===================== DESCARGAS (solo 1) ===================== */
 function downloadBase64Image(base64Png, filename = "imagen_anotada.png") {
   const a = document.createElement("a");
   a.href = "data:image/png;base64," + base64Png;
@@ -749,7 +825,7 @@ downloadXlsxBtn.addEventListener("click", async () => {
   URL.revokeObjectURL(url);
 });
 
-/* ===================== INTERACCIONES VISOR ===================== */
+/* ===================== INTERACCIONES VISOR (solo 1) ===================== */
 viewer.addEventListener("mousedown", (e) => {
   dragging = true;
   startX = e.clientX - offsetX;
@@ -779,9 +855,7 @@ viewer.addEventListener("click", (e) => {
   if (!outImg.src) return;
 
   if (manualMode.checked) {
-    // ✅ si ya se procesó, NO dejar agregar más puntos
     if (manualLocked) return;
-
     if (e.button !== 0) return;
 
     const { x, y } = clientToImageCoords(e.clientX, e.clientY);
@@ -816,7 +890,6 @@ viewer.addEventListener("click", (e) => {
     return;
   }
 
-  // modo normal: zoom click
   const factor = e.shiftKey ? 1 / 1.25 : 1.25;
   zoomAt(e.clientX, e.clientY, factor);
 });

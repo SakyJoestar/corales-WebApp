@@ -17,6 +17,11 @@ from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
+import zipfile
+from datetime import datetime
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+
 
 # ===================== CONFIG =====================
 
@@ -206,6 +211,40 @@ def predict_points_batch(img, points, model, tfm):
     confs = probs.max(dim=1).values.cpu().numpy()
     return pred_idxs, confs
 
+def safe_sheet_name(name: str) -> str:
+    """
+    Excel: max 31 chars, no []:*?/\
+    """
+    bad = ['[', ']', ':', '*', '?', '/', '\\']
+    for b in bad:
+        name = name.replace(b, "_")
+    name = name.strip() or "Imagen"
+    return name[:31]
+
+def safe_filename(name: str) -> str:
+    name = os.path.basename(name or "imagen")
+    return "".join(c if c.isalnum() or c in (" ", "-", "_", ".", "(", ")") else "_" for c in name).strip() or "imagen"
+
+def add_points_to_sheet(ws, image_name: str, model_id: str, points: list):
+    ws["A1"] = "imagen"
+    ws["B1"] = image_name
+    ws["A2"] = "modelo"
+    ws["B2"] = model_id
+
+    headers = ["idx", "label", "x", "y", "x_norm", "y_norm", "pred_label", "confidence", "source"]
+    for col, h in enumerate(headers, start=1):
+        ws.cell(row=4, column=col, value=h)
+
+    for r, p in enumerate(points, start=5):
+        ws.cell(r, 1, p.get("idx"))
+        ws.cell(r, 2, p.get("label"))
+        ws.cell(r, 3, p.get("x"))
+        ws.cell(r, 4, p.get("y"))
+        ws.cell(r, 5, p.get("x_norm"))
+        ws.cell(r, 6, p.get("y_norm"))
+        ws.cell(r, 7, p.get("pred_label"))
+        ws.cell(r, 8, p.get("confidence"))
+        ws.cell(r, 9, p.get("source"))
 
 # ===================== ROUTE =====================
 
@@ -345,4 +384,92 @@ def export_excel(payload: dict = Body(...)):
         bio,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="puntos_coral.xlsx"'}
+    )
+
+@app.post("/process_batch")
+async def process_batch(
+    files: list[UploadFile] = File(...),
+    n: int = Form(100),
+    model_id: str = Form("")
+):
+    if not model_id:
+        return JSONResponse({"error": "Selecciona un modelo"}, status_code=400)
+
+    if not files or len(files) == 0:
+        return JSONResponse({"error": "Sube al menos 1 imagen"}, status_code=400)
+
+    if len(files) > 25:
+        return JSONResponse({"error": "Máximo 25 imágenes"}, status_code=400)
+
+    # Cargar modelo una vez
+    model, tfm = load_model_by_id(model_id)
+
+    # Excel workbook
+    wb = Workbook()
+    # Quitar la hoja por defecto
+    default_ws = wb.active
+    wb.remove(default_ws)
+
+    # ZIP en memoria
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # procesar cada imagen
+        used_sheet_names = set()
+
+        for i, uf in enumerate(files, start=1):
+            raw = await uf.read()
+            try:
+                img = Image.open(io.BytesIO(raw)).convert("RGB")
+            except Exception:
+                # si una imagen falla, la saltamos con una nota (opcional)
+                continue
+
+            w, h = img.size
+            points = generate_random_points(w, h, n=n)
+
+            pred_idxs, confs = predict_points_batch(img, points, model, tfm)
+            for p, idx, conf in zip(points, pred_idxs, confs):
+                p["pred_label"] = CLASSES[int(idx)]
+                p["confidence"] = float(conf)
+                p["source"] = "modelo"
+
+            annotated = draw_points(img, points)
+
+            # Nombre base
+            original_name = safe_filename(uf.filename or f"imagen_{i}.png")
+            base = os.path.splitext(original_name)[0]
+            out_png_name = f"{base} (anotada).png"
+
+            # Guardar PNG anotada en ZIP
+            img_bytes = io.BytesIO()
+            annotated.save(img_bytes, format="PNG")
+            zf.writestr(f"imagenes_anotadas/{out_png_name}", img_bytes.getvalue())
+
+            # Crear hoja Excel
+            sheet_name = safe_sheet_name(base)
+            # Evitar duplicados
+            if sheet_name in used_sheet_names:
+                k = 2
+                while safe_sheet_name(f"{sheet_name}_{k}") in used_sheet_names:
+                    k += 1
+                sheet_name = safe_sheet_name(f"{sheet_name}_{k}")
+            used_sheet_names.add(sheet_name)
+
+            ws = wb.create_sheet(title=sheet_name)
+            add_points_to_sheet(ws, original_name, model_id, points)
+
+        # Guardar Excel dentro del ZIP
+        xlsx_buf = io.BytesIO()
+        wb.save(xlsx_buf)
+        zf.writestr("tabla_puntos.xlsx", xlsx_buf.getvalue())
+
+    zip_buf.seek(0)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"resultados_coral_{ts}.zip"
+
+    return StreamingResponse(
+        zip_buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
