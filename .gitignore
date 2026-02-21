@@ -131,6 +131,6 @@ docker-compose.override.yml
 *.db
 *.png
 
-backend/models_store/
+backend/app/models_store/
 *.pt
 *.pth
