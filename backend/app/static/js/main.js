@@ -10,9 +10,12 @@ import {
   bindManualDeleteButtons,
 } from "./manual.js";
 import { updateNPointsState, clearSinglePreview, updateManualButtons } from "./state.js";
+import { updateResetButtonState } from "./viewer.js";
 
 window.addEventListener("DOMContentLoaded", async () => {
   initDom();
+
+  updateResetButtonState();
 
   updateNPointsState();
   clearSinglePreview();

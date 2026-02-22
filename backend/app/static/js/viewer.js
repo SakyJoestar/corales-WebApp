@@ -116,3 +116,8 @@ export function zoomToPoint(p, targetScale = 2.6) {
   setTransform(newScale, newOffsetX, newOffsetY);
   applyTransform();
 }
+
+export function updateResetButtonState() {
+  const hasImage = !!dom.outImg.src;
+  dom.resetViewBtn.disabled = !hasImage;
+}

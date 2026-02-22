@@ -35,6 +35,7 @@ import {
   idxToLabelExcel,
   getNextIdx,
 } from "./helpers.js";
+import { updateResetButtonState } from "./viewer.js";
 
 /* ===== descargas ===== */
 function downloadBlob(blob, filename) {
@@ -134,18 +135,34 @@ export function bindFileEvents() {
     dom.batchHelp.style.display = "none";
     updateNPointsState();
 
-    if (!dom.manualMode.checked) {
-      clearSinglePreview();
-      dom.statusEl.textContent =
-        files.length === 1 ? "Imagen seleccionada. Presiona Procesar." : "";
+    if (files.length === 1) {
+      const fileObj = files[0];
+
+      // ✅ siempre mostrar preview
+      clearSinglePreview(); // limpia tabla/descargas/overlays
+      loadOriginalPreview(fileObj); // carga imagen en el visor
+
+      // texto UX
+      dom.statusEl.textContent = dom.manualMode.checked
+        ? "Manual: imagen cargada. Click para agregar puntos y luego presiona Procesar."
+        : "Imagen cargada. Presiona Procesar para anotar automáticamente.";
+
+      // Si manual está activo, habilita el panel manual (pero NO agregues puntos aquí)
+      if (dom.manualMode.checked) {
+        dom.manualHelp.style.display = "block";
+        // aquí normalmente tu manual inicia con puntos vacíos
+        setLastPoints([]);
+        syncNPointsFromManual();
+        renderTable(lastPoints);
+        renderAllManualPoints();
+      } else {
+        dom.manualHelp.style.display = "none";
+        // tabla vacía en modo no-manual
+        dom.tableDiv.innerHTML = "";
+      }
+
       updateManualButtons();
       return;
-    }
-
-    // manual con 1 imagen => mostrar original
-    if (files.length === 1) {
-      dom.manualHelp.style.display = "block";
-      loadOriginalImageForManual();
     }
   });
 }
@@ -155,24 +172,51 @@ export function bindManualToggle() {
   dom.manualMode.addEventListener("change", () => {
     const files = dom.imageFile.files ? Array.from(dom.imageFile.files) : [];
 
+    // Manual solo tiene sentido con 1 imagen
     if (dom.manualMode.checked && files.length !== 1) {
       dom.manualMode.checked = false;
     }
 
+    // UI de ayudas
     dom.manualHelp.style.display =
       dom.manualMode.checked && files.length === 1 ? "block" : "none";
     dom.batchHelp.style.display = files.length > 1 ? "block" : "none";
     updateNPointsState();
 
+    // ✅ Si se desactiva manual: borrar puntos/tabla/overlays PERO mantener la imagen
+    if (!dom.manualMode.checked) {
+      setManualLocked(false);
+      setLastPoints([]);
+      syncNPointsFromManual();
+
+      dom.tableDiv.innerHTML = "";
+      dom.overlay.innerHTML = "";
+      dom.overlayAll.innerHTML = "";
+      setHighlightedIdx(-1);
+
+      dom.nPointsInput.value = "100";
+
+      // si hay 1 imagen seleccionada, mantenla en pantalla
+      if (files.length === 1) {
+        dom.statusEl.textContent =
+          "Manual desactivado. Presiona Procesar para anotar automáticamente.";
+      } else {
+        // si no hay imagen, ahí sí un reset total tiene sentido
+        clearSinglePreview();
+        dom.statusEl.textContent = "";
+      }
+
+      updateManualButtons();
+      return; // ✅ importante: evita caer al bloque que hace clearSinglePreview()
+    }
+
+    // ✅ Si se activa manual con 1 imagen: cargar modo manual
     setManualLocked(false);
 
     if (dom.manualMode.checked && files.length === 1) {
       loadOriginalImageForManual();
-    } else {
-      if (files.length === 1) {
-        clearSinglePreview();
-        dom.statusEl.textContent = "Imagen seleccionada. Presiona Procesar.";
-      }
+      updateManualButtons();
+      return;
     }
 
     updateManualButtons();
@@ -247,6 +291,8 @@ export function bindViewerClickEvents() {
     setHighlightedIdx(-1);
 
     if (dom.manualMode.checked && !manualLocked) renderAllManualPoints();
+
+    updateResetButtonState();
   };
 
   window.addEventListener("resize", () => {
@@ -391,4 +437,17 @@ export function bindDownloadEvents() {
       alert("Error descargando Excel");
     }
   });
+}
+
+function loadOriginalPreview(fileObj) {
+  // reset overlays visuales (pero NO borra puntos aquí)
+  dom.overlay.innerHTML = "";
+  dom.overlayAll.innerHTML = "";
+  setHighlightedIdx(-1);
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    dom.outImg.src = reader.result; // 👈 muestra la imagen en el visor
+  };
+  reader.readAsDataURL(fileObj);
 }
