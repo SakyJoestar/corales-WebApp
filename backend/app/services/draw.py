@@ -1,53 +1,38 @@
-from PIL import ImageDraw, ImageFont
-from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
 
-def _pick_sizes(img_w: int, img_h: int):
-    s = min(img_w, img_h)
-
-    cross = max(15, min(50, s // 35))      # cruces más grandes
-    thick = max(3, min(8, s // 250))       # líneas más gruesas
-    fsize = max(24, min(72, s // 25))      # 👈 LETRA GRANDE
-
-    return cross, thick, fsize
-
-
-def draw_points(img, points, color=(255, 0, 0)):
-    draw = ImageDraw.Draw(img)
-    w, h = img.size
-    cross, thick, fsize = _pick_sizes(w, h)
-
-    # Fuente real (no la default pequeña)
-    font = None
-    for p in [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+def _load_font(font_size: int):
+    for fp in [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/Library/Fonts/Arial.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf"
     ]:
-        if Path(p).exists():
-            font = ImageFont.truetype(p, fsize)
-            break
+        try:
+            return ImageFont.truetype(fp, font_size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
 
-    if font is None:
-        font = ImageFont.load_default()
+def draw_points(img: Image.Image, points):
+    out = img.convert("RGB").copy()
+    draw = ImageDraw.Draw(out)
+
+    W, H = out.size
+    cross_size = max(10, int(min(W, H) * 0.020))
+    half = cross_size // 2
+    font_size = max(14, int(min(W, H) * 0.020))
+    font = _load_font(font_size)
+
+    color = (255, 0, 0)
+    width = 2
 
     for p in points:
         x, y = int(p["x"]), int(p["y"])
-        label = p.get("pred", "")
+        label = p.get("label", "")
 
-        # Cruz grande
-        draw.line([(x - cross, y), (x + cross, y)], fill=color, width=thick)
-        draw.line([(x, y - cross), (x, y + cross)], fill=color, width=thick)
+        draw.line((x - half, y, x + half, y), fill=color, width=width)
+        draw.line((x, y - half, x, y + half), fill=color, width=width)
 
-        # Texto con borde grueso
-        tx = x + cross + 6
-        ty = y - fsize // 2
+        tx, ty = x + half + 4, y - half - 2
+        draw.text((tx, ty), label, fill=color, font=font)
 
-        draw.text(
-            (tx, ty),
-            label,
-            font=font,
-            fill=color,
-            stroke_width=max(2, thick),      # 👈 BORDE MÁS GRUESO
-            stroke_fill=(0, 0, 0)
-        )
-
-    return img
+    return out
