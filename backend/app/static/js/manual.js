@@ -18,9 +18,23 @@ import {
   syncNPointsFromManual,
   updateManualButtons,
 } from "./state.js";
-import { zoomAt, clientToImageCoords, isInsideImage, fitToViewerCenter } from "./viewer.js";
-import { renderTable, renderAllManualPoints, highlightPointByIdx } from "./render.js";
-import { getBaseName, sanitizeName, idxToLabelExcel, getNextIdx } from "./helpers.js";
+import {
+  zoomAt,
+  clientToImageCoords,
+  isInsideImage,
+  fitToViewerCenter,
+} from "./viewer.js";
+import {
+  renderTable,
+  renderAllManualPoints,
+  highlightPointByIdx,
+} from "./render.js";
+import {
+  getBaseName,
+  sanitizeName,
+  idxToLabelExcel,
+  getNextIdx,
+} from "./helpers.js";
 
 /* ===== descargas ===== */
 function downloadBlob(blob, filename) {
@@ -51,7 +65,8 @@ function loadOriginalImageForManual() {
   const fileObj = files[0];
   setManualLocked(false);
 
-  dom.statusEl.textContent = "Manual: imagen cargada. Click para agregar puntos y luego presiona Procesar.";
+  dom.statusEl.textContent =
+    "Manual: imagen cargada. Click para agregar puntos y luego presiona Procesar.";
   dom.downloadImgBtn.disabled = true;
   dom.downloadXlsxBtn.disabled = true;
 
@@ -80,7 +95,9 @@ function loadOriginalImageForManual() {
 export function bindFileEvents() {
   dom.imageFile.addEventListener("change", () => {
     const files = dom.imageFile.files ? Array.from(dom.imageFile.files) : [];
-    dom.fileCount.textContent = files.length ? `${files.length} archivo(s) seleccionado(s)` : "";
+    dom.fileCount.textContent = files.length
+      ? `${files.length} archivo(s) seleccionado(s)`
+      : "";
 
     // reset base
     setManualLocked(false);
@@ -107,7 +124,8 @@ export function bindFileEvents() {
       updateNPointsState();
 
       clearSinglePreview();
-      dom.statusEl.textContent = "Imágenes seleccionadas. Presiona Procesar para descargar el ZIP.";
+      dom.statusEl.textContent =
+        "Imágenes seleccionadas. Presiona Procesar para descargar el ZIP.";
       updateManualButtons();
       return;
     }
@@ -118,7 +136,8 @@ export function bindFileEvents() {
 
     if (!dom.manualMode.checked) {
       clearSinglePreview();
-      dom.statusEl.textContent = files.length === 1 ? "Imagen seleccionada. Presiona Procesar." : "";
+      dom.statusEl.textContent =
+        files.length === 1 ? "Imagen seleccionada. Presiona Procesar." : "";
       updateManualButtons();
       return;
     }
@@ -140,8 +159,9 @@ export function bindManualToggle() {
       dom.manualMode.checked = false;
     }
 
-    dom.manualHelp.style.display = (dom.manualMode.checked && files.length === 1) ? "block" : "none";
-    dom.batchHelp.style.display = (files.length > 1) ? "block" : "none";
+    dom.manualHelp.style.display =
+      dom.manualMode.checked && files.length === 1 ? "block" : "none";
+    dom.batchHelp.style.display = files.length > 1 ? "block" : "none";
     updateNPointsState();
 
     setManualLocked(false);
@@ -175,14 +195,23 @@ export function bindViewerClickEvents() {
       const nextIdx = getNextIdx(lastPoints);
       const label = idxToLabelExcel(nextIdx);
 
-      const classes = (AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0)
-        ? AVAILABLE_CLASSES
-        : ["Algas","Coral","Otros organismos","Sustrato inerte","Tape","nan"];
+      const classes =
+        AVAILABLE_CLASSES && AVAILABLE_CLASSES.length > 0
+          ? AVAILABLE_CLASSES
+          : [
+              "Algas",
+              "Coral",
+              "Otros organismos",
+              "Sustrato inerte",
+              "Tape",
+              "nan",
+            ];
 
       lastPoints.push({
         idx: nextIdx,
         label,
-        x, y,
+        x,
+        y,
         x_norm: dom.outImg.naturalWidth ? x / dom.outImg.naturalWidth : 0,
         y_norm: dom.outImg.naturalHeight ? y / dom.outImg.naturalHeight : 0,
         pred_label: classes[0] || "",
@@ -194,7 +223,6 @@ export function bindViewerClickEvents() {
       syncNPointsFromManual();
       renderTable(lastPoints);
       renderAllManualPoints();
-      highlightPointByIdx(lastPoints.length - 1);
 
       dom.statusEl.textContent = `Manual: puntos = ${lastPoints.length}. Presiona Procesar cuando termines.`;
       updateManualButtons();
@@ -218,7 +246,7 @@ export function bindViewerClickEvents() {
     dom.overlay.innerHTML = "";
     setHighlightedIdx(-1);
 
-    if (dom.manualMode.checked) renderAllManualPoints();
+    if (dom.manualMode.checked && !manualLocked) renderAllManualPoints();
   };
 
   window.addEventListener("resize", () => {
@@ -266,11 +294,14 @@ export function bindFormEvents() {
     e.preventDefault();
 
     const files = dom.imageFile.files ? Array.from(dom.imageFile.files) : [];
-    if (files.length === 0) return void (dom.statusEl.textContent = "Selecciona al menos 1 imagen.");
-    if (!dom.modelSelect.value) return void (dom.statusEl.textContent = "Selecciona un modelo.");
+    if (files.length === 0)
+      return void (dom.statusEl.textContent = "Selecciona al menos 1 imagen.");
+    if (!dom.modelSelect.value)
+      return void (dom.statusEl.textContent = "Selecciona un modelo.");
 
     const n = Number(dom.nPointsInput.value || 0);
-    if (!Number.isFinite(n) || n < 1) return void (dom.statusEl.textContent = "N puntos debe ser >= 1.");
+    if (!Number.isFinite(n) || n < 1)
+      return void (dom.statusEl.textContent = "N puntos debe ser >= 1.");
 
     // ====== BATCH ======
     if (files.length > 1) {
@@ -315,18 +346,24 @@ export function bindFormEvents() {
     dom.downloadXlsxBtn.disabled = true;
 
     try {
-      const data = await processSingle(fd);
+      await processSingle(fd);
 
-      // actualizar render
       renderTable(lastPoints);
 
       dom.downloadImgBtn.disabled = false;
       dom.downloadXlsxBtn.disabled = false;
       setLastModelId(dom.modelSelect.value);
 
-      if (dom.manualMode.checked) setManualLocked(true);
-      updateManualButtons();
+      if (dom.manualMode.checked) {
+        setManualLocked(true);
 
+        // ✅ limpiar marcas manuales
+        dom.overlayAll.innerHTML = "";
+        dom.overlay.innerHTML = "";
+        setHighlightedIdx(-1);
+      }
+
+      updateManualButtons();
       dom.statusEl.textContent = "Listo ✅";
     } catch (err) {
       dom.statusEl.textContent = "Error: " + (err?.message || "process");
@@ -338,7 +375,10 @@ export function bindFormEvents() {
 export function bindDownloadEvents() {
   dom.downloadImgBtn.addEventListener("click", () => {
     if (!lastImageBase64) return;
-    downloadBase64Image(lastImageBase64, `${lastBaseName || "imagen"} (anotada).png`);
+    downloadBase64Image(
+      lastImageBase64,
+      `${lastBaseName || "imagen"} (anotada).png`,
+    );
   });
 
   dom.downloadXlsxBtn.addEventListener("click", async () => {
