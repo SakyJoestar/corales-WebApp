@@ -81,6 +81,7 @@ function loadOriginalImageForManual() {
 
   dom.overlay.innerHTML = "";
   dom.overlayAll.innerHTML = "";
+  dom.tableDiv.innerHTML = "";
   setHighlightedIdx(-1);
 
   const reader = new FileReader();
@@ -265,7 +266,7 @@ export function bindViewerClickEvents() {
 
       setLastPoints(lastPoints);
       syncNPointsFromManual();
-      renderTable(lastPoints);
+      // renderTable(lastPoints);
       renderAllManualPoints();
 
       dom.statusEl.textContent = `Manual: puntos = ${lastPoints.length}. Presiona Procesar cuando termines.`;
