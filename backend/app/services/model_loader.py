@@ -8,7 +8,7 @@ from huggingface_hub import hf_hub_download
 from ..core.config import NUM_CLASSES
 
 # Cambia esto por tu repo real
-HF_REPO_ID = "TU_USUARIO/coral-models"
+HF_REPO_ID = "SamuelGal/coral-models"
 
 _MODEL_CACHE = {}  # model_id -> (model, tfm)
 
