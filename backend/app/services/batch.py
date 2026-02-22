@@ -8,7 +8,7 @@ from ..utils.naming import safe_filename, safe_sheet_name
 from .points import generate_random_points
 from .inference import predict_points_batch
 from .draw import draw_points
-from .excel import add_points_to_sheet
+from .excel_export import add_points_to_sheet
 
 async def process_batch_zip(files, n: int, model_id: str, model, tfm) -> tuple[io.BytesIO, str]:
     wb = Workbook()
@@ -33,7 +33,7 @@ async def process_batch_zip(files, n: int, model_id: str, model, tfm) -> tuple[i
             for p, idx, conf in zip(points, pred_idxs, confs):
                 p["pred_label"] = CLASSES[int(idx)]
                 p["confidence"] = float(conf)
-                p["source"] = "modelo"
+                p["method"] = "automatico"
 
             annotated = draw_points(img, points)
 

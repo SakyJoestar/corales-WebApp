@@ -40,7 +40,7 @@ async def process(
     for p, idx, conf in zip(points, pred_idxs, confs):
         p["pred_label"] = CLASSES[int(idx)]
         p["confidence"] = float(conf)
-        p.setdefault("source", "modelo")
+        p.setdefault("method", "automatico")
 
     annotated = draw_points(img, points)
 

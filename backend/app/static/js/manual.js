@@ -17,6 +17,8 @@ import {
   updateNPointsState,
   syncNPointsFromManual,
   updateManualButtons,
+  setLastImageName, 
+  lastImageName,
 } from "./state.js";
 import {
   zoomAt,
@@ -123,6 +125,7 @@ export function bindFileEvents() {
       dom.manualMode.checked = false;
       dom.manualHelp.style.display = "none";
       dom.batchHelp.style.display = "block";
+      setLastImageName("");
       updateNPointsState();
 
       clearSinglePreview();
@@ -139,9 +142,12 @@ export function bindFileEvents() {
     if (files.length === 1) {
       const fileObj = files[0];
 
+      // 👇 NUEVO
+      setLastImageName(fileObj.name);
+
       // ✅ siempre mostrar preview
-      clearSinglePreview(); // limpia tabla/descargas/overlays
-      loadOriginalPreview(fileObj); // carga imagen en el visor
+      clearSinglePreview();
+      loadOriginalPreview(fileObj);
 
       // texto UX
       dom.statusEl.textContent = dom.manualMode.checked
@@ -432,7 +438,11 @@ export function bindDownloadEvents() {
     if (!lastPoints || lastPoints.length === 0) return;
 
     try {
-      const blob = await exportExcel(lastPoints, lastModelId);
+      const blob = await exportExcel(
+        lastPoints,
+        lastModelId,
+        lastImageName || lastBaseName || "imagen",
+      );
       downloadBlob(blob, `${lastBaseName || "imagen"} (tabla).xlsx`);
     } catch {
       alert("Error descargando Excel");

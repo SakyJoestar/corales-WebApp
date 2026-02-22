@@ -7,6 +7,7 @@ export let lastImageBase64 = "";
 export let lastPoints = [];
 export let lastModelId = "";
 export let lastBaseName = "";
+export let lastImageName = "";
 export let highlightedIdx = -1;
 
 // pan/zoom
@@ -21,6 +22,7 @@ export function setLastPoints(arr) { lastPoints = Array.isArray(arr) ? arr : [];
 export function setLastImageBase64(v) { lastImageBase64 = v || ""; }
 export function setLastModelId(v) { lastModelId = v || ""; }
 export function setLastBaseName(v) { lastBaseName = v || ""; }
+export function setLastImageName(v) { lastImageName = v || ""; }
 export function setHighlightedIdx(v) { highlightedIdx = Number.isFinite(v) ? v : -1; }
 
 export function setTransform(s, x, y) {

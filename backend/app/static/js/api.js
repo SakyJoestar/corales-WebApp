@@ -92,18 +92,15 @@ export async function processBatch(fd) {
 
 /* ===================== EXPORT EXCEL ===================== */
 
-export async function exportExcel(points, modelId) {
+export async function exportExcel(points, modelId, imageName) {
   const res = await fetch("/export/excel", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      points,
-      model_id: modelId,
-    }),
+    body: JSON.stringify({ points, model_id: modelId, image_name: imageName }),
   });
 
   if (!res.ok) {
-    throw new Error("Error descargando Excel");
+    throw new Error("Error exportando Excel");
   }
 
   return await res.blob();

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
-from ...services.excel import export_single_excel
+
+from ...services.excel_export import export_single_excel
 
 router = APIRouter()
 
@@ -8,7 +9,9 @@ router = APIRouter()
 def export_excel(payload: dict = Body(...)):
     points = payload.get("points", [])
     model_id = payload.get("model_id", "")
-    bio = export_single_excel(points, model_id)
+    image_name = payload.get("image_name", "imagen")
+
+    bio = export_single_excel(points=points, model_id=model_id, image_name=image_name)
 
     return StreamingResponse(
         bio,
