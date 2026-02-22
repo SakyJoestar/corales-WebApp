@@ -92,7 +92,7 @@ export function renderTable(points) {
           <th>y</th>
           <th>clase</th>
           <th>conf</th>
-          <th>origen</th>
+          <th>método</th>
           <th>acción</th>
         </tr>
       </thead>
@@ -110,10 +110,11 @@ export function renderTable(points) {
       })
       .join("");
 
-    const origin = p.source ?? "modelo";
-    const originBadge = origin.startsWith("manual")
-      ? `<span class="badge manual">${origin}</span>`
-      : `<span class="badge">${origin}</span>`;
+    const method = p.method ?? "automatico";
+    const methodBadge =
+      method === "manual"
+        ? `<span class="badge manual">Manual</span>`
+        : `<span class="badge">Automático</span>`;
 
     html += `
       <tr data-idx="${i}">
@@ -124,7 +125,7 @@ export function renderTable(points) {
         <td>${p.y}</td>
         <td><select class="classSelect">${options}</select></td>
         <td class="confCell">${p.confidence != null ? Number(p.confidence).toFixed(3) : ""}</td>
-        <td class="srcCell">${originBadge}</td>
+        <td class="methodCell">${methodBadge}</td>
         <td><button type="button" class="delBtn">Eliminar</button></td>
       </tr>
     `;
@@ -145,14 +146,12 @@ export function renderTable(points) {
 
       lastPoints[idx].pred_label = newClass;
 
-      const prev = String(lastPoints[idx].source || "modelo");
-      if (!prev.startsWith("manual")) lastPoints[idx].source = "manual-edit";
-      else if (prev === "manual") lastPoints[idx].source = "manual-edit";
-
+      lastPoints[idx].method = "manual";
       lastPoints[idx].confidence = null;
+
       tr.querySelector(".confCell").textContent = "";
-      tr.querySelector(".srcCell").innerHTML =
-        `<span class="badge manual">${lastPoints[idx].source}</span>`;
+      tr.querySelector(".methodCell").innerHTML =
+        `<span class="badge manual">Manual</span>`;
     });
   });
 

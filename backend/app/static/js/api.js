@@ -53,24 +53,22 @@ export async function loadModels() {
 /* ===================== PROCESS SINGLE ===================== */
 
 export async function processSingle(fd) {
-  const res = await fetch("/process", {
-    method: "POST",
-    body: fd,
-  });
-
+  const res = await fetch("/process", { method: "POST", body: fd });
   const data = await res.json();
 
-  if (!res.ok) {
-    throw new Error(data.error || "Error procesando imagen");
+  if (!res.ok) throw new Error(data.error || "Error procesando");
+
+  dom.outImg.src =
+    "data:image/png;base64," + data.annotated_image_base64;
+
+  // 👇 AQUÍ es donde agregas el método automático
+  const pts = data.points || [];
+
+  for (const p of pts) {
+    if (!p.method) p.method = "automatico";
   }
 
-  dom.outImg.src = "data:image/png;base64," + data.annotated_image_base64;
-
-  setLastImageBase64(data.annotated_image_base64);
-  setLastPoints(data.points || []);
-  setLastModelId(dom.modelSelect.value);
-
-  return data;
+  setLastPoints(pts);
 }
 
 /* ===================== PROCESS BATCH ===================== */
