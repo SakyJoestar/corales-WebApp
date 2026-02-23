@@ -6,15 +6,37 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def _load_font(font_size: int) -> ImageFont.ImageFont:
+def _load_font(font_size: int):
     candidates = [
+        # 1) por nombre (a veces Pillow ya trae DejaVu)
+        "DejaVuSans-Bold.ttf",
+        "DejaVuSans.ttf",
+
+        # 2) rutas Linux típicas
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+
+        # 3) mac/windows
+        "/Library/Fonts/Arial.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
     ]
+
     for fp in candidates:
-        if os.path.isfile(fp):
-            return ImageFont.truetype(fp, font_size)
-    return ImageFont.load_default()
+        try:
+            if fp.endswith(".ttf") and ("/" in fp or "\\" in fp):
+                if not os.path.isfile(fp):
+                    continue
+            f = ImageFont.truetype(fp, font_size)
+            print("FONT OK:", fp, "size:", font_size)
+            return f, fp
+        except Exception as e:
+            # imprime solo algunos intentos para no spamear
+            continue
+
+    print("FONT FALLBACK: load_default() (THIS WILL BE TINY)")
+    return ImageFont.load_default(), "DEFAULT"
 
 
 def draw_points(
@@ -25,17 +47,18 @@ def draw_points(
     out = img.convert("RGB").copy()
     draw = ImageDraw.Draw(out)
 
+    print(">>> draw.py VERSION = 2026-02-23 FONT DEBUG")
+
     W, H = out.size
     s = min(W, H)
 
     cross_size = max(16, int(s * 0.030))   # antes 0.020
     half = cross_size // 2
 
-    # 👇 letra más grande que la cruz (mantiene estilo, mejora legibilidad)
-    font_size  = max(34, int(s * 0.045))   # antes 0.032
+    font_size  = max(70, int(s * 0.080))
     font = _load_font(font_size)
 
-    width = 3
+    width = 4
 
     for p in points:
         x = int(p.get("x", 0))
