@@ -47,7 +47,7 @@ def draw_points(
     cross_size = max(16, int(s * 0.030))   # antes 0.020
     half = cross_size // 2
 
-    font_size  = max(28, int(s * 0.038))
+    font_size  = max(24, int(s * 0.030))
     font = _load_font(font_size)
 
     width = 4
