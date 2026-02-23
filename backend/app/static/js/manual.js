@@ -54,35 +54,26 @@ function downloadBlob(blob, filename) {
 function downloadBase64Image(base64Png, filename) {
   if (!base64Png) return;
 
-  // Si viene como dataURL completo, extraer solo el base64
+  // si viene con data:image..., extrae solo el base64
   const pureBase64 = base64Png.includes("base64,")
     ? base64Png.split("base64,")[1]
     : base64Png;
 
-  const byteCharacters = atob(pureBase64);
-  const byteArrays = [];
-  const sliceSize = 1024;
-
-  for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-    const slice = byteCharacters.slice(offset, offset + sliceSize);
-    const byteNumbers = new Array(slice.length);
-    for (let i = 0; i < slice.length; i++) {
-      byteNumbers[i] = slice.charCodeAt(i);
-    }
-    byteArrays.push(new Uint8Array(byteNumbers));
-  }
-
-  const blob = new Blob(byteArrays, { type: "image/png" });
+  const bytes = Uint8Array.from(atob(pureBase64), (c) => c.charCodeAt(0));
+  const blob = new Blob([bytes], { type: "image/png" });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
+  a.style.display = "none";
   a.href = url;
-  a.download = filename;
+  a.download = filename || "imagen_anotada.png";
   document.body.appendChild(a);
   a.click();
-  a.remove();
 
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 0);
 }
 
 /* ===== manual preview (cargar original sin puntos) ===== */
