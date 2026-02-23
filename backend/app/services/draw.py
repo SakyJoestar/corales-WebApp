@@ -2,19 +2,18 @@
 from __future__ import annotations
 from typing import Any, Dict, List
 from PIL import Image, ImageDraw, ImageFont
+import os
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def _load_font(font_size: int) -> ImageFont.ImageFont:
-    for fp in [
+    candidates = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/Library/Fonts/Arial.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-    ]:
-        try:
+    ]
+    for fp in candidates:
+        if os.path.isfile(fp):
             return ImageFont.truetype(fp, font_size)
-        except Exception:
-            pass
     return ImageFont.load_default()
 
 
@@ -36,7 +35,7 @@ def draw_points(
     font_size  = max(34, int(s * 0.045))   # antes 0.032
     font = _load_font(font_size)
 
-    width      = max(3,  int(s * 0.007))   # antes 2 fijo
+    width = 3
 
     for p in points:
         x = int(p.get("x", 0))
