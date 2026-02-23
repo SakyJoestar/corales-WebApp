@@ -52,12 +52,37 @@ function downloadBlob(blob, filename) {
 }
 
 function downloadBase64Image(base64Png, filename) {
+  if (!base64Png) return;
+
+  // Si viene como dataURL completo, extraer solo el base64
+  const pureBase64 = base64Png.includes("base64,")
+    ? base64Png.split("base64,")[1]
+    : base64Png;
+
+  const byteCharacters = atob(pureBase64);
+  const byteArrays = [];
+  const sliceSize = 1024;
+
+  for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+    const slice = byteCharacters.slice(offset, offset + sliceSize);
+    const byteNumbers = new Array(slice.length);
+    for (let i = 0; i < slice.length; i++) {
+      byteNumbers[i] = slice.charCodeAt(i);
+    }
+    byteArrays.push(new Uint8Array(byteNumbers));
+  }
+
+  const blob = new Blob(byteArrays, { type: "image/png" });
+  const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
-  a.href = "data:image/png;base64," + base64Png;
+  a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+
+  URL.revokeObjectURL(url);
 }
 
 /* ===== manual preview (cargar original sin puntos) ===== */
