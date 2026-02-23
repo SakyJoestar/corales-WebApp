@@ -33,10 +33,10 @@ def draw_points(
     half = cross_size // 2
 
     # 👇 letra más grande que la cruz (mantiene estilo, mejora legibilidad)
-    font_size  = max(26, int(s * 0.045))   # antes 0.032
+    font_size  = max(34, int(s * 0.045))   # antes 0.032
     font = _load_font(font_size)
 
-    width      = max(4,  int(s * 0.007))   # antes 2 fijo
+    width      = max(3,  int(s * 0.007))   # antes 2 fijo
 
     for p in points:
         x = int(p.get("x", 0))
