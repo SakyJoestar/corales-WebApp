@@ -427,6 +427,7 @@ export function bindFormEvents() {
 /* ===================== DOWNLOADS ===================== */
 export function bindDownloadEvents() {
   dom.downloadImgBtn.addEventListener("click", () => {
+    print("Descargando imagen anotada...");
     if (!lastImageBase64) return;
     downloadBase64Image(
       lastImageBase64,
