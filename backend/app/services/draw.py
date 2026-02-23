@@ -6,37 +6,29 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def _load_font(font_size: int):
+def _load_font(font_size: int) -> ImageFont.ImageFont:
     candidates = [
-        # 1) por nombre (a veces Pillow ya trae DejaVu)
         "DejaVuSans-Bold.ttf",
         "DejaVuSans.ttf",
-
-        # 2) rutas Linux típicas
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-
-        # 3) mac/windows
-        "/Library/Fonts/Arial.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
     ]
 
     for fp in candidates:
         try:
-            if fp.endswith(".ttf") and ("/" in fp or "\\" in fp):
-                if not os.path.isfile(fp):
-                    continue
+            # si es ruta absoluta, verificar existencia
+            if ("/" in fp or "\\" in fp) and not os.path.isfile(fp):
+                continue
             f = ImageFont.truetype(fp, font_size)
             print("FONT OK:", fp, "size:", font_size)
-            return f, fp
-        except Exception as e:
-            # imprime solo algunos intentos para no spamear
+            return f
+        except Exception:
             continue
 
     print("FONT FALLBACK: load_default() (THIS WILL BE TINY)")
-    return ImageFont.load_default(), "DEFAULT"
+    return ImageFont.load_default()
 
 
 def draw_points(
