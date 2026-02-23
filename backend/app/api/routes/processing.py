@@ -48,4 +48,6 @@ async def process(
     annotated.save(buffer, format="PNG")
     img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
+    print("IMG SIZE:", img.size)
+
     return {"annotated_image_base64": img_base64, "points": points}
