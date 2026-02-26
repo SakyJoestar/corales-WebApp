@@ -448,6 +448,7 @@ export function bindDownloadEvents() {
       alert("Primero presiona Procesar.");
       return;
     }
+    console.log("TOKEN:", lastDownloadToken);
     try {
       const res = await fetch(`/download/image/${lastDownloadToken}`);
       if (!res.ok) throw new Error("Error descargando imagen");

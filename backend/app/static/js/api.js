@@ -55,7 +55,6 @@ export async function loadModels() {
 
 export async function processSingle(fd) {
   const res = await fetch("/process", { method: "POST", body: fd });
-  console.log("TOKEN:", lastDownloadToken);
   const data = await res.json();
 
   if (!res.ok) throw new Error(data.error || "Error procesando");
