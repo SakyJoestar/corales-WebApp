@@ -38,6 +38,7 @@ import {
   getNextIdx,
 } from "./helpers.js";
 import { updateResetButtonState } from "./viewer.js";
+import { lastDownloadToken } from "./state.js";
 
 /* ===== descargas ===== */
 function downloadBlob(blob, filename) {
@@ -442,19 +443,21 @@ export function bindFormEvents() {
 
 /* ===================== DOWNLOADS ===================== */
 export function bindDownloadEvents() {
-  dom.downloadImgBtn.addEventListener("click", () => {
-    const src = dom.outImg?.src || "";
-    if (!src.includes("data:image") || !src.includes("base64,")) {
-      alert("No hay imagen anotada para descargar. Primero presiona Procesar.");
+  dom.downloadImgBtn.addEventListener("click", async () => {
+    if (!lastDownloadToken) {
+      alert("Primero presiona Procesar.");
       return;
     }
+    try {
+      const res = await fetch(`/download/image/${lastDownloadToken}`);
+      if (!res.ok) throw new Error("Error descargando imagen");
 
-    const a = document.createElement("a");
-    a.href = src; // <- usa lo que ya está renderizado
-    a.download = `${lastBaseName || "imagen"} (anotada).png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+      const blob = await res.blob();
+      downloadBlob(blob, `${lastBaseName || "imagen"} (anotada).png`);
+    } catch (err) {
+      console.error(err);
+      alert("Error descargando imagen.");
+    }
   });
 
   dom.downloadXlsxBtn.addEventListener("click", async () => {

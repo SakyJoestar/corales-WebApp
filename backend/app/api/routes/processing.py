@@ -8,6 +8,10 @@ from ...services.model_loader import load_model_by_id
 from ...services.points import generate_random_points, normalize_manual_points
 from ...services.inference import predict_points_batch
 from ...services.draw import draw_points
+import uuid
+from fastapi.responses import Response
+
+ANNOTATED_CACHE = {}
 
 router = APIRouter()
 
@@ -46,8 +50,31 @@ async def process(
 
     buffer = io.BytesIO()
     annotated.save(buffer, format="PNG")
-    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    png_bytes = buffer.getvalue()
 
-    print("IMG SIZE:", img.size)
+    # 🔥 generar token y guardar imagen en memoria
+    token = str(uuid.uuid4())
+    ANNOTATED_CACHE[token] = png_bytes
 
-    return {"annotated_image_base64": img_base64, "points": points}
+    # solo para preview (si quieres mantenerlo)
+    img_base64 = base64.b64encode(png_bytes).decode("utf-8")
+
+    return {
+        "annotated_image_base64": img_base64,
+        "points": points,
+        "download_token": token
+    }
+
+@router.get("/download/image/{token}")
+def download_image(token: str):
+    png = ANNOTATED_CACHE.get(token)
+    if not png:
+        return Response("Not found", status_code=404)
+
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": 'attachment; filename="imagen_anotada.png"'
+        }
+    )

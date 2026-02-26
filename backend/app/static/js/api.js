@@ -6,6 +6,7 @@ import {
   setLastModelId,
   setLastBaseName,
   setManualLocked,
+  setLastDownloadToken,
 } from "./state.js";
 
 /* ===================== MODELOS ===================== */
@@ -58,17 +59,19 @@ export async function processSingle(fd) {
 
   if (!res.ok) throw new Error(data.error || "Error procesando");
 
+  // preview sigue igual
   dom.outImg.src =
     "data:image/png;base64," + data.annotated_image_base64;
 
-  // 👇 AQUÍ es donde agregas el método automático
   const pts = data.points || [];
-
   for (const p of pts) {
     if (!p.method) p.method = "automatico";
   }
 
   setLastPoints(pts);
+
+  // 🔥 guardar token
+  setLastDownloadToken(data.download_token);
 }
 
 /* ===================== PROCESS BATCH ===================== */

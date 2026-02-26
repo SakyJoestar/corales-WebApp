@@ -15,6 +15,8 @@ export let scale = 1;
 export let offsetX = 0;
 export let offsetY = 0;
 
+export let lastDownloadToken = "";
+
 // mutadores mínimos (para que no sea un “spaghetti”)
 export function setAvailableClasses(arr) { AVAILABLE_CLASSES = arr || []; }
 export function setManualLocked(v) { manualLocked = !!v; }
@@ -53,4 +55,8 @@ export function updateManualButtons() {
   const enabled = dom.manualMode.checked && !manualLocked && lastPoints.length > 0;
   dom.deleteLastBtn.disabled = !enabled;
   dom.deleteAllBtn.disabled = !enabled;
+}
+
+export function setLastDownloadToken(v) {
+  lastDownloadToken = v || "";
 }
