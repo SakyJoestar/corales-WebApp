@@ -17,7 +17,7 @@ import {
   updateNPointsState,
   syncNPointsFromManual,
   updateManualButtons,
-  setLastImageName, 
+  setLastImageName,
   lastImageName,
 } from "./state.js";
 import {
@@ -443,11 +443,18 @@ export function bindFormEvents() {
 /* ===================== DOWNLOADS ===================== */
 export function bindDownloadEvents() {
   dom.downloadImgBtn.addEventListener("click", () => {
-    if (!lastImageBase64) return;
-    downloadBase64Image(
-      lastImageBase64,
-      `${lastBaseName || "imagen"} (anotada).png`,
-    );
+    const src = dom.outImg?.src || "";
+    if (!src.includes("data:image") || !src.includes("base64,")) {
+      alert("No hay imagen anotada para descargar. Primero presiona Procesar.");
+      return;
+    }
+
+    const a = document.createElement("a");
+    a.href = src; // <- usa lo que ya está renderizado
+    a.download = `${lastBaseName || "imagen"} (anotada).png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 
   dom.downloadXlsxBtn.addEventListener("click", async () => {
@@ -460,8 +467,9 @@ export function bindDownloadEvents() {
         lastImageName || lastBaseName || "imagen",
       );
       downloadBlob(blob, `${lastBaseName || "imagen"} (tabla).xlsx`);
-    } catch {
+    } catch (e) {
       alert("Error descargando Excel");
+      console.error(e);
     }
   });
 }
