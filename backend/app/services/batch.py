@@ -2,6 +2,7 @@ import io, os, zipfile
 from datetime import datetime
 from openpyxl import Workbook
 from PIL import Image
+from starlette.concurrency import run_in_threadpool
 
 from ..core.config import CLASSES
 from ..utils.naming import safe_filename, safe_sheet_name
@@ -10,7 +11,7 @@ from .inference import predict_points_batch
 from .draw import draw_points
 from .excel_export import add_points_to_sheet
 
-async def process_batch_zip(files, n: int, model_id: str, model, tfm) -> tuple[io.BytesIO, str]:
+async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -> tuple[io.BytesIO, str]:
     wb = Workbook()
     default_ws = wb.active
     wb.remove(default_ws)
@@ -20,6 +21,11 @@ async def process_batch_zip(files, n: int, model_id: str, model, tfm) -> tuple[i
         used_sheet_names = set()
 
         for i, uf in enumerate(files, start=1):
+            # Antes de cada imagen: si el cliente ya canceló, no seguimos
+            # gastando CPU en las imágenes restantes del lote.
+            if await request.is_disconnected():
+                break
+
             raw = await uf.read()
             try:
                 img = Image.open(io.BytesIO(raw)).convert("RGB")
@@ -29,13 +35,15 @@ async def process_batch_zip(files, n: int, model_id: str, model, tfm) -> tuple[i
             w, h = img.size
             points = generate_random_points(w, h, n=n)
 
-            pred_idxs, confs = predict_points_batch(img, points, model, tfm)
+            pred_idxs, confs = await run_in_threadpool(
+                predict_points_batch, img, points, model, tfm
+            )
             for p, idx, conf in zip(points, pred_idxs, confs):
                 p["pred_label"] = CLASSES[int(idx)]
                 p["confidence"] = float(conf)
                 p["method"] = "automatico"
 
-            annotated = draw_points(img, points)
+            annotated = await run_in_threadpool(draw_points, img, points)
 
             original_name = safe_filename(uf.filename or f"imagen_{i}.png")
             base = os.path.splitext(original_name)[0]

@@ -6,6 +6,7 @@ NUM_CLASSES = len(CLASSES)
 
 MAX_BATCH_IMAGES = 25
 DEFAULT_N_POINTS = 100
+POINTS_CHUNK_SIZE = 256  # inference done in chunks so a client cancel is noticed mid-image
 
 # Threads CPU
 try:

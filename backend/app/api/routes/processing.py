@@ -1,9 +1,10 @@
 import io, json, base64
 from PIL import Image
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
-from ...core.config import CLASSES
+from ...core.config import CLASSES, POINTS_CHUNK_SIZE
 from ...services.model_loader import load_model_by_id
 from ...services.points import generate_random_points, normalize_manual_points
 from ...services.inference import predict_points_batch
@@ -17,6 +18,7 @@ router = APIRouter()
 
 @router.post("/process")
 async def process(
+    request: Request,
     file: UploadFile = File(...),
     n: int = Form(100),
     model_id: str = Form(""),
@@ -29,7 +31,7 @@ async def process(
     img = Image.open(io.BytesIO(content)).convert("RGB")
     w, h = img.size
 
-    model, tfm = load_model_by_id(model_id)
+    model, tfm = await run_in_threadpool(load_model_by_id, model_id)
 
     if points_json:
         try:
@@ -40,13 +42,26 @@ async def process(
     else:
         points = generate_random_points(w, h, n=n)
 
-    pred_idxs, confs = predict_points_batch(img, points, model, tfm)
+    # Inferencia en chunks: libera el event loop entre lotes y permite notar
+    # si el cliente canceló la petición antes de terminar toda la imagen.
+    pred_idxs, confs = [], []
+    for i in range(0, len(points), POINTS_CHUNK_SIZE):
+        if await request.is_disconnected():
+            return Response(status_code=499)
+
+        chunk = points[i:i + POINTS_CHUNK_SIZE]
+        chunk_idxs, chunk_confs = await run_in_threadpool(
+            predict_points_batch, img, chunk, model, tfm
+        )
+        pred_idxs.extend(chunk_idxs)
+        confs.extend(chunk_confs)
+
     for p, idx, conf in zip(points, pred_idxs, confs):
         p["pred_label"] = CLASSES[int(idx)]
         p["confidence"] = float(conf)
         p.setdefault("method", "automatico")
 
-    annotated = draw_points(img, points)
+    annotated = await run_in_threadpool(draw_points, img, points)
 
     buffer = io.BytesIO()
     annotated.save(buffer, format="PNG")
