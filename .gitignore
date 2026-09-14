@@ -134,3 +134,13 @@ docker-compose.override.yml
 backend/app/models_store/
 *.pt
 *.pth
+
+# =========================
+# Claude Code (config local, hooks con rutas absolutas)
+# =========================
+.claude/
+
+# =========================
+# Graphify (grafo generado, regenerar con `graphify update .`)
+# =========================
+graphify-out/

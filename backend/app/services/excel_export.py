@@ -26,7 +26,7 @@ def _write_points_sheet(ws, image_name: str, model_id: str, points: list):
 
     headers = [
         "idx", "Etiqueta", "x", "y", "x_norm", "y_norm",
-        "Predicción", "Confianza", "Método"
+        "Predicción", "Subcategoría", "Confianza", "Método", "Nota"
     ]
     for col, h in enumerate(headers, start=1):
         ws.cell(row=4, column=col, value=h)
@@ -39,10 +39,12 @@ def _write_points_sheet(ws, image_name: str, model_id: str, points: list):
         ws.cell(r, 5, p.get("x_norm"))
         ws.cell(r, 6, p.get("y_norm"))
         ws.cell(r, 7, p.get("pred_label"))
-        ws.cell(r, 8, p.get("confidence"))
-        ws.cell(r, 9, infer_method(p))
+        ws.cell(r, 8, p.get("subcategory"))
+        ws.cell(r, 9, p.get("confidence"))
+        ws.cell(r, 10, infer_method(p))
+        ws.cell(r, 11, p.get("note"))
 
-    widths = [8, 10, 10, 10, 14, 14, 20, 14, 14]
+    widths = [8, 10, 10, 10, 14, 14, 20, 16, 14, 14, 24]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 

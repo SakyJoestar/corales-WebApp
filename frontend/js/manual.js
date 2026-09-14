@@ -19,12 +19,18 @@ import {
   updateManualButtons,
   setLastImageName,
   lastImageName,
+  lastDownloadToken,
+  setDownloadImgEnabled,
+  setDownloadXlsxEnabled,
+  updateModeTabsUI,
+  cropModeActive,
 } from "./state.js";
+import { recordHistoryEntry } from "./history.js";
 import {
-  zoomAt,
   clientToImageCoords,
   isInsideImage,
   fitToViewerCenter,
+  wasLastDragASignificantMove,
 } from "./viewer.js";
 import {
   renderTable,
@@ -38,7 +44,6 @@ import {
   getNextIdx,
 } from "./helpers.js";
 import { updateResetButtonState } from "./viewer.js";
-import { lastDownloadToken } from "./state.js";
 
 /* ===== descargas ===== */
 function downloadBlob(blob, filename) {
@@ -87,8 +92,8 @@ function loadOriginalImageForManual() {
 
   dom.statusEl.textContent =
     "Manual: imagen cargada. Click para agregar puntos y luego presiona Procesar.";
-  dom.downloadImgBtn.disabled = true;
-  dom.downloadXlsxBtn.disabled = true;
+  setDownloadImgEnabled(false);
+  setDownloadXlsxEnabled(false);
 
   setLastImageBase64("");
   setLastModelId(dom.modelSelect.value || "");
@@ -100,7 +105,6 @@ function loadOriginalImageForManual() {
 
   dom.overlay.innerHTML = "";
   dom.overlayAll.innerHTML = "";
-  dom.tableDiv.innerHTML = "";
   setHighlightedIdx(-1);
 
   const reader = new FileReader();
@@ -110,6 +114,83 @@ function loadOriginalImageForManual() {
   reader.readAsDataURL(fileObj);
 
   updateManualButtons();
+}
+
+/* ===================== DROPZONE (drag & drop + click) ===================== */
+export function bindDropzone() {
+  const zone = dom.dropzone;
+  const input = dom.imageFile;
+  if (!zone || !input) return;
+
+  zone.addEventListener("click", () => input.click());
+  zone.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      input.click();
+    }
+  });
+
+  ["dragenter", "dragover"].forEach((evt) => {
+    zone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      zone.classList.add("dragging");
+    });
+  });
+
+  ["dragleave", "dragend"].forEach((evt) => {
+    zone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      zone.classList.remove("dragging");
+    });
+  });
+
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    zone.classList.remove("dragging");
+
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    input.files = files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+/* ===================== CHIPS DE ARCHIVOS SELECCIONADOS ===================== */
+function removeFileAt(index) {
+  const files = dom.imageFile.files ? Array.from(dom.imageFile.files) : [];
+  files.splice(index, 1);
+
+  const dt = new DataTransfer();
+  files.forEach((f) => dt.items.add(f));
+  dom.imageFile.files = dt.files;
+  dom.imageFile.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function renderFileChips(files) {
+  dom.fileChips.innerHTML = "";
+  files.forEach((f, i) => {
+    const chip = document.createElement("span");
+    chip.className = "file-chip";
+
+    const name = document.createElement("span");
+    name.className = "file-chip-name";
+    name.textContent = f.name;
+    name.title = f.name;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "file-chip-remove";
+    removeBtn.setAttribute("aria-label", `Quitar ${f.name}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => removeFileAt(i));
+
+    chip.appendChild(name);
+    chip.appendChild(removeBtn);
+    dom.fileChips.appendChild(chip);
+  });
 }
 
 /* ===================== FILE EVENTS ===================== */
@@ -128,14 +209,22 @@ export function bindFileEvents() {
       dom.statusEl.textContent = "Error: Máximo 25 imágenes.";
       dom.imageFile.value = "";
       dom.fileCount.textContent = "";
+      renderFileChips([]);
+      dom.uploadHint.style.display = "";
+      dom.dropzone.style.display = "";
       clearSinglePreview();
       dom.manualMode.checked = false;
       dom.manualHelp.style.display = "none";
       dom.batchHelp.style.display = "none";
       updateNPointsState();
+      updateModeTabsUI();
       updateManualButtons();
       return;
     }
+
+    renderFileChips(files);
+    dom.uploadHint.style.display = files.length ? "none" : "";
+    dom.dropzone.style.display = files.length ? "none" : "";
 
     // BATCH
     if (files.length > 1) {
@@ -144,6 +233,7 @@ export function bindFileEvents() {
       dom.batchHelp.style.display = "block";
       setLastImageName("");
       updateNPointsState();
+      updateModeTabsUI();
 
       clearSinglePreview();
       dom.statusEl.textContent =
@@ -155,6 +245,7 @@ export function bindFileEvents() {
     // 1 imagen
     dom.batchHelp.style.display = "none";
     updateNPointsState();
+    updateModeTabsUI();
 
     if (files.length === 1) {
       const fileObj = files[0];
@@ -182,7 +273,7 @@ export function bindFileEvents() {
       } else {
         dom.manualHelp.style.display = "none";
         // tabla vacía en modo no-manual
-        dom.tableDiv.innerHTML = "";
+        renderTable([]);
       }
 
       updateManualButtons();
@@ -206,6 +297,7 @@ export function bindManualToggle() {
       dom.manualMode.checked && files.length === 1 ? "block" : "none";
     dom.batchHelp.style.display = files.length > 1 ? "block" : "none";
     updateNPointsState();
+    updateModeTabsUI();
 
     // ✅ Si se desactiva manual: borrar puntos/tabla/overlays PERO mantener la imagen
     if (!dom.manualMode.checked) {
@@ -213,7 +305,7 @@ export function bindManualToggle() {
       setLastPoints([]);
       syncNPointsFromManual();
 
-      dom.tableDiv.innerHTML = "";
+      renderTable([]);
       dom.overlay.innerHTML = "";
       dom.overlayAll.innerHTML = "";
       setHighlightedIdx(-1);
@@ -247,10 +339,27 @@ export function bindManualToggle() {
   });
 }
 
+/* ===================== MODE TABS (Automático / Manual) ===================== */
+export function bindModeTabs() {
+  dom.tabAuto.addEventListener("click", () => {
+    if (!dom.manualMode.checked) return;
+    dom.manualMode.checked = false;
+    dom.manualMode.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  dom.tabManual.addEventListener("click", () => {
+    if (dom.tabManual.disabled || dom.manualMode.checked) return;
+    dom.manualMode.checked = true;
+    dom.manualMode.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
 /* ===================== VIEWER CLICK: manual add / normal zoom ===================== */
 export function bindViewerClickEvents() {
   dom.viewer.addEventListener("click", (e) => {
     if (!dom.outImg.src) return;
+    if (cropModeActive) return;
+    if (wasLastDragASignificantMove()) return;
 
     // manual add
     if (dom.manualMode.checked) {
@@ -296,10 +405,6 @@ export function bindViewerClickEvents() {
       updateManualButtons();
       return;
     }
-
-    // normal zoom
-    const factor = e.shiftKey ? 1 / 1.25 : 1.25;
-    zoomAt(e.clientX, e.clientY, factor);
   });
 
   // overlays size + fit on load
@@ -334,7 +439,6 @@ export function bindManualDeleteButtons() {
     setLastPoints(lastPoints);
 
     syncNPointsFromManual();
-    renderTable(lastPoints);
     renderAllManualPoints();
     updateManualButtons();
 
@@ -351,7 +455,6 @@ export function bindManualDeleteButtons() {
     setHighlightedIdx(-1);
 
     syncNPointsFromManual();
-    renderTable([]);
     updateManualButtons();
 
     dom.statusEl.textContent = "Manual: todos los puntos eliminados.";
@@ -359,6 +462,14 @@ export function bindManualDeleteButtons() {
 }
 
 /* ===================== SUBMIT ===================== */
+function setProcessingUI(isLoading) {
+  dom.processBtn.disabled = isLoading;
+  dom.processBtn.classList.toggle("is-loading", isLoading);
+  dom.processBtn.querySelector(".btn-label").textContent = isLoading
+    ? "Procesando…"
+    : "Procesar";
+}
+
 export function bindFormEvents() {
   dom.imageForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -373,70 +484,85 @@ export function bindFormEvents() {
     if (!Number.isFinite(n) || n < 1)
       return void (dom.statusEl.textContent = "N puntos debe ser >= 1.");
 
-    // ====== BATCH ======
-    if (files.length > 1) {
-      dom.statusEl.textContent = `Procesando ${files.length} imágenes... (esto puede tardar)`;
-      clearSinglePreview();
+    setProcessingUI(true);
+    try {
+      // ====== BATCH ======
+      if (files.length > 1) {
+        dom.statusEl.textContent = `Procesando ${files.length} imágenes... (esto puede tardar)`;
+        clearSinglePreview();
+
+        const fd = new FormData();
+        for (const f of files) fd.append("files", f);
+        fd.append("n", String(n));
+        fd.append("model_id", dom.modelSelect.value);
+
+        try {
+          const blob = await processBatch(fd);
+          downloadBlob(blob, "resultados_coral.zip");
+          dom.statusEl.textContent = "Listo ✅ ZIP descargado.";
+        } catch (err) {
+          dom.statusEl.textContent = "Error: " + (err?.message || "batch");
+        }
+        return;
+      }
+
+      // ====== SINGLE ======
+      const fileObj = files[0];
+      const baseName = sanitizeName(getBaseName(fileObj.name));
+      setLastBaseName(baseName);
 
       const fd = new FormData();
-      for (const f of files) fd.append("files", f);
-      fd.append("n", String(n));
-      fd.append("model_id", dom.modelSelect.value);
-
-      try {
-        const blob = await processBatch(fd);
-        downloadBlob(blob, "resultados_coral.zip");
-        dom.statusEl.textContent = "Listo ✅ ZIP descargado.";
-      } catch (err) {
-        dom.statusEl.textContent = "Error: " + (err?.message || "batch");
-      }
-      return;
-    }
-
-    // ====== SINGLE ======
-    const fileObj = files[0];
-    const baseName = sanitizeName(getBaseName(fileObj.name));
-    setLastBaseName(baseName);
-
-    const fd = new FormData();
-    fd.append("file", fileObj);
-
-    if (dom.manualMode.checked) {
-      syncNPointsFromManual();
-      fd.append("n", String(lastPoints.length));
-      fd.append("points_json", JSON.stringify(lastPoints));
-    } else {
-      fd.append("n", String(n));
-    }
-
-    fd.append("model_id", dom.modelSelect.value);
-
-    dom.statusEl.textContent = "Procesando imagen...";
-    dom.downloadImgBtn.disabled = true;
-    dom.downloadXlsxBtn.disabled = true;
-
-    try {
-      await processSingle(fd);
-
-      renderTable(lastPoints);
-
-      dom.downloadImgBtn.disabled = false;
-      dom.downloadXlsxBtn.disabled = false;
-      setLastModelId(dom.modelSelect.value);
+      fd.append("file", fileObj);
 
       if (dom.manualMode.checked) {
-        setManualLocked(true);
-
-        // ✅ limpiar marcas manuales
-        dom.overlayAll.innerHTML = "";
-        dom.overlay.innerHTML = "";
-        setHighlightedIdx(-1);
+        syncNPointsFromManual();
+        fd.append("n", String(lastPoints.length));
+        fd.append("points_json", JSON.stringify(lastPoints));
+      } else {
+        fd.append("n", String(n));
       }
 
-      updateManualButtons();
-      dom.statusEl.textContent = "Listo ✅";
-    } catch (err) {
-      dom.statusEl.textContent = "Error: " + (err?.message || "process");
+      fd.append("model_id", dom.modelSelect.value);
+
+      dom.statusEl.textContent = "Procesando imagen...";
+      setDownloadImgEnabled(false);
+      setDownloadXlsxEnabled(false);
+
+      try {
+        await processSingle(fd);
+
+        renderTable(lastPoints);
+
+        setDownloadImgEnabled(true);
+        setDownloadXlsxEnabled(true);
+        setLastModelId(dom.modelSelect.value);
+
+        recordHistoryEntry({
+          imageBase64: lastImageBase64,
+          baseName,
+          imageName: fileObj.name,
+          modelId: dom.modelSelect.value,
+          modelName: dom.modelSelect.selectedOptions[0]?.textContent || dom.modelSelect.value,
+          points: lastPoints,
+          downloadToken: lastDownloadToken,
+        });
+
+        if (dom.manualMode.checked) {
+          setManualLocked(true);
+
+          // ✅ limpiar marcas manuales
+          dom.overlayAll.innerHTML = "";
+          dom.overlay.innerHTML = "";
+          setHighlightedIdx(-1);
+        }
+
+        updateManualButtons();
+        dom.statusEl.textContent = "Listo ✅ Se generaron los puntos.";
+      } catch (err) {
+        dom.statusEl.textContent = "Error: " + (err?.message || "process");
+      }
+    } finally {
+      setProcessingUI(false);
     }
   });
 }
