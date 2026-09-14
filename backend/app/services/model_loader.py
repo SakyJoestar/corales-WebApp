@@ -13,7 +13,7 @@ HF_REPO_ID = "SamuelGal/coral-models"
 _MODEL_CACHE = {}  # model_id -> (model, tfm)
 
 def build_model(arch: str, num_classes: int):
-    arch = arch.lower()
+    arch = arch.lower().replace("-", "").replace("_", "")
 
     if arch == "vgg16":
         m = models.vgg16(weights=None)
@@ -30,7 +30,7 @@ def build_model(arch: str, num_classes: int):
         m.classifier[6] = nn.Linear(m.classifier[6].in_features, num_classes)
         return m
 
-    if arch == "mobilenet_v2":
+    if arch == "mobilenetv2":
         m = models.mobilenet_v2(weights=None)
         m.classifier[1] = nn.Linear(m.classifier[1].in_features, num_classes)
         return m
