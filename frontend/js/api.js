@@ -53,8 +53,8 @@ export async function loadModels() {
 
 /* ===================== PROCESS SINGLE ===================== */
 
-export async function processSingle(fd) {
-  const res = await fetch("/process", { method: "POST", body: fd });
+export async function processSingle(fd, signal) {
+  const res = await fetch("/process", { method: "POST", body: fd, signal });
   const data = await res.json();
 
   if (!res.ok) throw new Error(data.error || "Error procesando");
@@ -77,10 +77,11 @@ export async function processSingle(fd) {
 
 /* ===================== PROCESS BATCH ===================== */
 
-export async function processBatch(fd) {
+export async function processBatch(fd, signal) {
   const res = await fetch("/process_batch", {
     method: "POST",
     body: fd,
+    signal,
   });
 
   if (!res.ok) {

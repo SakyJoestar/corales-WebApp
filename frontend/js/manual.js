@@ -462,15 +462,22 @@ export function bindManualDeleteButtons() {
 }
 
 /* ===================== SUBMIT ===================== */
+let currentAbortController = null;
+
 function setProcessingUI(isLoading) {
   dom.processBtn.disabled = isLoading;
   dom.processBtn.classList.toggle("is-loading", isLoading);
   dom.processBtn.querySelector(".btn-label").textContent = isLoading
     ? "Procesando…"
     : "Procesar";
+  dom.cancelBtn.hidden = !isLoading;
 }
 
 export function bindFormEvents() {
+  dom.cancelBtn.addEventListener("click", () => {
+    currentAbortController?.abort();
+  });
+
   dom.imageForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
@@ -484,6 +491,7 @@ export function bindFormEvents() {
     if (!Number.isFinite(n) || n < 1)
       return void (dom.statusEl.textContent = "N puntos debe ser >= 1.");
 
+    currentAbortController = new AbortController();
     setProcessingUI(true);
     try {
       // ====== BATCH ======
@@ -497,11 +505,14 @@ export function bindFormEvents() {
         fd.append("model_id", dom.modelSelect.value);
 
         try {
-          const blob = await processBatch(fd);
+          const blob = await processBatch(fd, currentAbortController.signal);
           downloadBlob(blob, "resultados_coral.zip");
           dom.statusEl.textContent = "Listo ✅ ZIP descargado.";
         } catch (err) {
-          dom.statusEl.textContent = "Error: " + (err?.message || "batch");
+          dom.statusEl.textContent =
+            err?.name === "AbortError"
+              ? "Procesamiento cancelado."
+              : "Error: " + (err?.message || "batch");
         }
         return;
       }
@@ -529,7 +540,7 @@ export function bindFormEvents() {
       setDownloadXlsxEnabled(false);
 
       try {
-        await processSingle(fd);
+        await processSingle(fd, currentAbortController.signal);
 
         renderTable(lastPoints);
 
@@ -559,9 +570,13 @@ export function bindFormEvents() {
         updateManualButtons();
         dom.statusEl.textContent = "Listo ✅ Se generaron los puntos.";
       } catch (err) {
-        dom.statusEl.textContent = "Error: " + (err?.message || "process");
+        dom.statusEl.textContent =
+          err?.name === "AbortError"
+            ? "Procesamiento cancelado."
+            : "Error: " + (err?.message || "process");
       }
     } finally {
+      currentAbortController = null;
       setProcessingUI(false);
     }
   });
