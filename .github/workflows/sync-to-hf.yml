@@ -21,7 +21,10 @@ jobs:
           ssh-private-key: ${{ secrets.HF_SSH_PRIVATE_KEY }}
 
       - name: Trust huggingface.co host key
-        run: ssh-keyscan -H hf.co >> ~/.ssh/known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H hf.co >> ~/.ssh/known_hosts
 
       - name: Push to Hugging Face Space
         run: |
