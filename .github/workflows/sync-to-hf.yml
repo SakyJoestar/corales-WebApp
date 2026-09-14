@@ -24,7 +24,7 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -H hf.co >> ~/.ssh/known_hosts
+          echo "hf.co ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINJjhgtT9FOQrsVSarIoPVI1jFMh3VSHdKfdqp/O776s" >> ~/.ssh/known_hosts
 
       - name: Push to Hugging Face Space
         run: |
