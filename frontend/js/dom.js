@@ -3,6 +3,7 @@ export const dom = {};
 export function initDom() {
   dom.imageForm = document.getElementById("imageForm");
   dom.processBtn = document.getElementById("processBtn");
+  dom.cancelBtn = document.getElementById("cancelBtn");
   dom.imageFile = document.getElementById("imageFile");
   dom.dropzone = document.getElementById("dropzone");
   dom.fileCount = document.getElementById("fileCount");
