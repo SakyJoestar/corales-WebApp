@@ -13,9 +13,10 @@ try:
 except Exception:
     pass
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/app -> backend
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/app/core -> backend/app
+PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))  # backend/app -> repo root
+FRONTEND_DIR = os.path.join(PROJECT_ROOT, "frontend")
 MODELS_DIR = os.path.join(BASE_DIR, "models_store")
 
-os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(FRONTEND_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)

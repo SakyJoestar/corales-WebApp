@@ -62,6 +62,7 @@ export async function processSingle(fd) {
   // preview sigue igual
   dom.outImg.src =
     "data:image/png;base64," + data.annotated_image_base64;
+  setLastImageBase64(data.annotated_image_base64);
 
   const pts = data.points || [];
   for (const p of pts) {
