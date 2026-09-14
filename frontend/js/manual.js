@@ -507,7 +507,7 @@ export function bindFormEvents() {
         try {
           const blob = await processBatch(fd, currentAbortController.signal);
           downloadBlob(blob, "resultados_coral.zip");
-          dom.statusEl.textContent = "Listo ✅ ZIP descargado.";
+          dom.statusEl.textContent = "Listo. ZIP descargado.";
         } catch (err) {
           dom.statusEl.textContent =
             err?.name === "AbortError"
@@ -568,7 +568,7 @@ export function bindFormEvents() {
         }
 
         updateManualButtons();
-        dom.statusEl.textContent = "Listo ✅ Se generaron los puntos.";
+        dom.statusEl.textContent = "Listo. Se generaron los puntos.";
       } catch (err) {
         dom.statusEl.textContent =
           err?.name === "AbortError"
