@@ -1,5 +1,5 @@
 ---
-title: Coral App
+title: CoralGorgona
 emoji: 🪸
 colorFrom: blue
 colorTo: green
@@ -7,7 +7,7 @@ sdk: docker
 pinned: false
 ---
 
-# 🪸 Coral WebApp
+# 🪸 CoralGorgona
 
 ### Sistema inteligente de marcado de puntos en imágenes de coral
 
@@ -20,7 +20,7 @@ pinned: false
 
 ## 📌 Descripción
 
-**Coral WebApp** es una aplicación web (FastAPI + PyTorch + JavaScript vanilla) para el marcado automático y manual de puntos sobre imágenes de coral, pensada para análisis ecológico y estudios de cobertura bentónica (método de puntos aleatorios / point-count).
+**CoralGorgona** es una aplicación web (FastAPI + PyTorch + JavaScript vanilla) para el marcado automático y manual de puntos sobre imágenes de coral, pensada para análisis ecológico y estudios de cobertura bentónica (método de puntos aleatorios / point-count).
 
 El sistema:
 - Genera puntos aleatorios (o permite marcarlos a mano) sobre una imagen submarina.
