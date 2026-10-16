@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from ...core.config import CLASSES, NUM_CLASSES
+from ...services.hierarchy import availability
 
 router = APIRouter()
 
@@ -37,4 +38,5 @@ def list_models():
         }
         items.append(item)
 
-    return {"models": items}
+    # qué niveles extra se pueden predecir (si no, la UI los deja para llenado manual)
+    return {"models": items, "hierarchy": availability()}

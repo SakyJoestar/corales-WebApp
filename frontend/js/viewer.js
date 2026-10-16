@@ -22,6 +22,7 @@ export function wasLastDragASignificantMove() {
 export function applyTransform() {
   const t = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
   dom.outImg.style.transform = t;
+  if (dom.baseImg) dom.baseImg.style.transform = t;
   dom.overlay.style.transform = t;
   dom.overlayAll.style.transform = t;
 }

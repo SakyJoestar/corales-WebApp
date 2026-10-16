@@ -10,8 +10,11 @@ from .points import generate_random_points
 from .inference import predict_points_batch
 from .draw import draw_points
 from .excel_export import add_points_to_sheet
+from .hierarchy import apply_hierarchy
 
-async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -> tuple[io.BytesIO, str]:
+async def process_batch_zip(request, files, n: int, model_id: str, model, tfm,
+                            include_subcategory: bool = False,
+                            include_condition: bool = False) -> tuple[io.BytesIO, str]:
     wb = Workbook()
     default_ws = wb.active
     wb.remove(default_ws)
@@ -43,6 +46,10 @@ async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -
                 p["confidence"] = float(conf)
                 p["method"] = "automatico"
 
+            await run_in_threadpool(
+                apply_hierarchy, img, points, include_subcategory, include_condition
+            )
+
             annotated = await run_in_threadpool(draw_points, img, points)
 
             original_name = safe_filename(uf.filename or f"imagen_{i}.png")
@@ -62,7 +69,9 @@ async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -
             used_sheet_names.add(sheet_name)
 
             ws = wb.create_sheet(title=sheet_name)
-            add_points_to_sheet(ws, original_name, model_id, points)
+            add_points_to_sheet(ws, original_name, model_id, points,
+                                include_subcategory=include_subcategory,
+                                include_condition=include_condition)
 
         xlsx_buf = io.BytesIO()
         wb.save(xlsx_buf)

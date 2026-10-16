@@ -1,4 +1,5 @@
 import { dom } from "./dom.js";
+import { setLevelAvailability } from "./levels.js";
 import {
   setAvailableClasses,
   setLastImageBase64,
@@ -7,6 +8,7 @@ import {
   setLastBaseName,
   setManualLocked,
   setLastDownloadToken,
+  setImageProcessed,
 } from "./state.js";
 
 /* ===================== MODELOS ===================== */
@@ -29,6 +31,7 @@ export async function loadModels() {
   }
 
   const data = await res.json();
+  setLevelAvailability(data.hierarchy);
 
   if (!data.models || data.models.length === 0) {
     const opt = document.createElement("option");
@@ -62,6 +65,7 @@ export async function processSingle(fd, signal) {
   // preview sigue igual
   dom.outImg.src =
     "data:image/png;base64," + data.annotated_image_base64;
+  setImageProcessed(true);
   setLastImageBase64(data.annotated_image_base64);
 
   const pts = data.points || [];
@@ -97,11 +101,11 @@ export async function processBatch(fd, signal) {
 
 /* ===================== EXPORT EXCEL ===================== */
 
-export async function exportExcel(points, modelId, imageName) {
+export async function exportExcel(points, modelId, imageName, levels) {
   const res = await fetch("/export/excel", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ points, model_id: modelId, image_name: imageName }),
+    body: JSON.stringify({ points, model_id: modelId, image_name: imageName, levels }),
   });
 
   if (!res.ok) {

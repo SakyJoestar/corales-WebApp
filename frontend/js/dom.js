@@ -23,6 +23,8 @@ export function initDom() {
   dom.viewer = document.getElementById("viewer");
   dom.outImg = document.getElementById("outImg");
   dom.overlay = document.getElementById("overlay");
+  dom.baseImg = document.getElementById("baseImg");
+  dom.showAllPointsBtn = document.getElementById("showAllPointsBtn");
   dom.overlayAll = document.getElementById("overlayAll");
   dom.cropBtn = document.getElementById("cropBtn");
   dom.cropCancelBtn = document.getElementById("cropCancelBtn");
@@ -44,6 +46,13 @@ export function initDom() {
   dom.zoomResetBtn = document.getElementById("zoomResetBtn");
 
   dom.classLegend = document.getElementById("classLegend");
+
+  dom.levelSubcategory = document.getElementById("levelSubcategory");
+  dom.levelCondition = document.getElementById("levelCondition");
+
+  dom.appGrid = document.querySelector(".app-grid");
+  dom.sidebarCollapseBtn = document.getElementById("sidebarCollapseBtn");
+  dom.sidebarExpandBtn = document.getElementById("sidebarExpandBtn");
 
   dom.historyList = document.getElementById("historyList");
   dom.historyCount = document.getElementById("historyCount");

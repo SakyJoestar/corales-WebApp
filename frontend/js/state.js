@@ -21,6 +21,11 @@ export function setCropModeActive(v) { cropModeActive = !!v; }
 
 export let lastDownloadToken = "";
 
+// true si el visor muestra un resultado (imagen anotada), no la original:
+// sobre esa ya no se puede recortar.
+export let imageProcessed = false;
+export function setImageProcessed(v) { imageProcessed = !!v; }
+
 // historial de resultados (solo en memoria, dura la sesión del navegador)
 export let resultHistory = [];
 const MAX_HISTORY = 20;
@@ -91,6 +96,7 @@ export function setDownloadXlsxEnabled(v) {
 
 export function clearSinglePreview() {
   dom.outImg.src = "";
+  setImageProcessed(false);
   dom.overlay.innerHTML = "";
   dom.overlayAll.innerHTML = "";
   renderTable([]);
@@ -103,7 +109,17 @@ export function updateManualButtons() {
   const enabled = dom.manualMode.checked && !manualLocked && lastPoints.length > 0;
   dom.deleteLastBtn.disabled = !enabled;
   dom.deleteAllBtn.disabled = !enabled;
-  dom.cropBtn.disabled = !dom.outImg.src;
+  // Recortar solo con una imagen original cargada y sin puntos: recortar después
+  // movería las coordenadas de los puntos (o recortaría la imagen ya anotada).
+  // getAttribute: con src="" la propiedad .src devuelve la URL de la página (truthy)
+  const hasImage = !!dom.outImg.getAttribute("src");
+  const canCrop = hasImage && !imageProcessed && lastPoints.length === 0;
+  dom.cropBtn.disabled = !canCrop;
+  dom.cropBtn.title = canCrop
+    ? "Recortar imagen"
+    : !hasImage
+      ? "Carga una imagen primero"
+      : "Solo se puede recortar antes de marcar o procesar puntos";
 }
 
 export function setLastDownloadToken(v) {

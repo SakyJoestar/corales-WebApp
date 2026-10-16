@@ -16,8 +16,12 @@ import {
   setDownloadImgEnabled,
   setDownloadXlsxEnabled,
   updateModeTabsUI,
+  setImageProcessed,
 } from "./state.js";
 import { renderTable } from "./render.js";
+import { collapseSidebar } from "./sidebar.js";
+import { setDetailLevels } from "./levels.js";
+import { setBaseImageSrc } from "./focus.js";
 
 function formatDate(iso) {
   const dt = new Date(iso);
@@ -34,7 +38,7 @@ function escapeHtml(s) {
 
 const TRASH_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path><path d="M10 11v6M14 11v6"></path></svg>`;
 
-export function recordHistoryEntry({ imageBase64, baseName, imageName, modelId, modelName, points, downloadToken }) {
+export function recordHistoryEntry({ imageBase64, baseName, imageName, modelId, modelName, points, downloadToken, levels, originalSrc }) {
   if (!imageBase64) return;
 
   addHistoryEntry({
@@ -46,6 +50,8 @@ export function recordHistoryEntry({ imageBase64, baseName, imageName, modelId, 
     modelName: modelName || modelId || "",
     points: JSON.parse(JSON.stringify(points || [])),
     downloadToken: downloadToken || "",
+    levels: levels || null,
+    originalSrc: originalSrc || "",
     date: new Date().toISOString(),
   });
 
@@ -157,10 +163,14 @@ function loadHistoryEntry(entry) {
   setHighlightedIdx(-1);
   setLastDownloadToken(entry.downloadToken);
 
+  setBaseImageSrc(entry.originalSrc);
   dom.outImg.src = "data:image/png;base64," + entry.imageBase64;
+  setImageProcessed(true);
   dom.overlay.innerHTML = "";
   dom.overlayAll.innerHTML = "";
 
+  // entradas viejas no tienen niveles: se dejan los checks como están
+  if (entry.levels) setDetailLevels(entry.levels);
   renderTable(entry.points);
 
   setDownloadImgEnabled(!!entry.downloadToken);
@@ -168,4 +178,5 @@ function loadHistoryEntry(entry) {
 
   dom.statusEl.textContent = `Cargado desde historial: ${entry.imageName || entry.baseName}`;
   updateManualButtons();
+  collapseSidebar();
 }

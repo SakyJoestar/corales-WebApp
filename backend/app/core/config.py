@@ -8,6 +8,11 @@ MAX_BATCH_IMAGES = 25
 DEFAULT_N_POINTS = 100
 POINTS_CHUNK_SIZE = 256  # inference done in chunks so a client cancel is noticed mid-image
 
+# Modelos opcionales de subcategoría y estado del coral (carpetas en models_store/
+# o en el Hub con best_model.pt + label_map.json + meta.json).
+SUBCATEGORY_MODEL_ID = "species_mobilenet_v2"
+CONDITION_MODEL_ID = "condition_mobilenet_v2"
+
 # Threads CPU
 try:
     torch.set_num_threads(4)
