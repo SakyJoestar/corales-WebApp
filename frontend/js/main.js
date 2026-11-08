@@ -14,9 +14,13 @@ import {
 import { updateNPointsState, updateModeTabsUI, clearSinglePreview, updateManualButtons } from "./state.js";
 import { updateResetButtonState, zoomAtCenter, fitToViewerCenter } from "./viewer.js";
 import { initTheme, bindThemeToggle } from "./theme.js";
-import { renderLegend } from "./render.js";
+import { renderLegend, renderTable } from "./render.js";
 import { renderHistory, bindHistoryModal } from "./history.js";
 import { bindCropButton } from "./crop.js";
+import { bindSidebarToggle } from "./sidebar.js";
+import { bindDetailLevels } from "./levels.js";
+import { bindPointFocus } from "./focus.js";
+import { lastPoints } from "./state.js";
 
 initTheme();
 
@@ -50,6 +54,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   bindCropButton();
   bindFormEvents();
   bindDownloadEvents();
+  bindSidebarToggle();
+  bindPointFocus();
+  // cambiar los niveles muestra/oculta las columnas de subclase y estado
+  bindDetailLevels(() => renderTable(lastPoints));
 
   if (dom.zoomInBtn) dom.zoomInBtn.addEventListener("click", () => zoomAtCenter(1.25));
   if (dom.zoomOutBtn) dom.zoomOutBtn.addEventListener("click", () => zoomAtCenter(1 / 1.25));

@@ -8,6 +8,8 @@ import {
   lastModelId,
   lastBaseName,
   setManualLocked,
+  setImageProcessed,
+  imageProcessed,
   setLastBaseName,
   setLastModelId,
   setLastImageBase64,
@@ -26,6 +28,9 @@ import {
   cropModeActive,
 } from "./state.js";
 import { recordHistoryEntry } from "./history.js";
+import { collapseSidebar } from "./sidebar.js";
+import { appendDetailLevels, getDetailLevels } from "./levels.js";
+import { setBaseImageFromFile, getBaseImageSrc, clearBaseImage, exitPointFocus } from "./focus.js";
 import {
   clientToImageCoords,
   isInsideImage,
@@ -110,6 +115,8 @@ function loadOriginalImageForManual() {
   const reader = new FileReader();
   reader.onload = () => {
     dom.outImg.src = reader.result;
+    setImageProcessed(false);
+    updateManualButtons();
   };
   reader.readAsDataURL(fileObj);
 
@@ -409,6 +416,9 @@ export function bindViewerClickEvents() {
 
   // overlays size + fit on load
   dom.outImg.onload = () => {
+    // imagen nueva en el visor: fuera el enfoque; si es una original, su "base" ya no aplica
+    exitPointFocus({ refit: false });
+    if (!imageProcessed) clearBaseImage();
     fitToViewerCenter();
 
     dom.overlay.style.width = dom.outImg.naturalWidth + "px";
@@ -503,6 +513,7 @@ export function bindFormEvents() {
         for (const f of files) fd.append("files", f);
         fd.append("n", String(n));
         fd.append("model_id", dom.modelSelect.value);
+        appendDetailLevels(fd);
 
         try {
           const blob = await processBatch(fd, currentAbortController.signal);
@@ -534,6 +545,7 @@ export function bindFormEvents() {
       }
 
       fd.append("model_id", dom.modelSelect.value);
+      appendDetailLevels(fd);
 
       dom.statusEl.textContent = "Procesando imagen...";
       setDownloadImgEnabled(false);
@@ -541,6 +553,8 @@ export function bindFormEvents() {
 
       try {
         await processSingle(fd, currentAbortController.signal);
+        // original sin anotar, para poder ocultar los puntos al enfocar uno
+        await setBaseImageFromFile(fileObj);
 
         renderTable(lastPoints);
 
@@ -556,6 +570,8 @@ export function bindFormEvents() {
           modelName: dom.modelSelect.selectedOptions[0]?.textContent || dom.modelSelect.value,
           points: lastPoints,
           downloadToken: lastDownloadToken,
+          levels: getDetailLevels(),
+          originalSrc: getBaseImageSrc(),
         });
 
         if (dom.manualMode.checked) {
@@ -569,6 +585,7 @@ export function bindFormEvents() {
 
         updateManualButtons();
         dom.statusEl.textContent = "Listo. Se generaron los puntos.";
+        collapseSidebar();
       } catch (err) {
         dom.statusEl.textContent =
           err?.name === "AbortError"
@@ -610,6 +627,7 @@ export function bindDownloadEvents() {
         lastPoints,
         lastModelId,
         lastImageName || lastBaseName || "imagen",
+        getDetailLevels(),
       );
       downloadBlob(blob, `${lastBaseName || "imagen"} (tabla).xlsx`);
     } catch (e) {
@@ -628,6 +646,8 @@ function loadOriginalPreview(fileObj) {
   const reader = new FileReader();
   reader.onload = () => {
     dom.outImg.src = reader.result; // 👈 muestra la imagen en el visor
+    setImageProcessed(false);
+    updateManualButtons();
   };
   reader.readAsDataURL(fileObj);
 }

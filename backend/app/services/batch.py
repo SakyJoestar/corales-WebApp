@@ -4,14 +4,16 @@ from openpyxl import Workbook
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
-from ..core.config import CLASSES
 from ..utils.naming import safe_filename, safe_sheet_name
 from .points import generate_random_points
 from .inference import predict_points_batch
 from .draw import draw_points
 from .excel_export import add_points_to_sheet
+from .hierarchy import apply_hierarchy
 
-async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -> tuple[io.BytesIO, str]:
+async def process_batch_zip(request, files, n: int, model_id: str, model, tfm, classes, patch_size,
+                            include_subcategory: bool = False,
+                            include_condition: bool = False) -> tuple[io.BytesIO, str]:
     wb = Workbook()
     default_ws = wb.active
     wb.remove(default_ws)
@@ -36,12 +38,16 @@ async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -
             points = generate_random_points(w, h, n=n)
 
             pred_idxs, confs = await run_in_threadpool(
-                predict_points_batch, img, points, model, tfm
+                predict_points_batch, img, points, model, tfm, patch_size
             )
             for p, idx, conf in zip(points, pred_idxs, confs):
-                p["pred_label"] = CLASSES[int(idx)]
+                p["pred_label"] = classes[int(idx)]
                 p["confidence"] = float(conf)
                 p["method"] = "automatico"
+
+            await run_in_threadpool(
+                apply_hierarchy, img, points, include_subcategory, include_condition
+            )
 
             annotated = await run_in_threadpool(draw_points, img, points)
 
@@ -62,7 +68,9 @@ async def process_batch_zip(request, files, n: int, model_id: str, model, tfm) -
             used_sheet_names.add(sheet_name)
 
             ws = wb.create_sheet(title=sheet_name)
-            add_points_to_sheet(ws, original_name, model_id, points)
+            add_points_to_sheet(ws, original_name, model_id, points,
+                                include_subcategory=include_subcategory,
+                                include_condition=include_condition)
 
         xlsx_buf = io.BytesIO()
         wb.save(xlsx_buf)

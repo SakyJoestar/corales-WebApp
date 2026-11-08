@@ -4,11 +4,12 @@ from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from ...core.config import CLASSES, POINTS_CHUNK_SIZE
-from ...services.model_loader import load_model_by_id
+from ...core.config import POINTS_CHUNK_SIZE
+from ...services.model_loader import load_major_model
 from ...services.points import generate_random_points, normalize_manual_points
 from ...services.inference import predict_points_batch
 from ...services.draw import draw_points
+from ...services.hierarchy import apply_hierarchy
 import uuid
 from fastapi.responses import Response
 
@@ -22,7 +23,9 @@ async def process(
     file: UploadFile = File(...),
     n: int = Form(100),
     model_id: str = Form(""),
-    points_json: str = Form("")
+    points_json: str = Form(""),
+    include_subcategory: bool = Form(False),
+    include_condition: bool = Form(False),
 ):
     if not model_id:
         return JSONResponse({"error": "Selecciona un modelo"}, status_code=400)
@@ -31,7 +34,7 @@ async def process(
     img = Image.open(io.BytesIO(content)).convert("RGB")
     w, h = img.size
 
-    model, tfm = await run_in_threadpool(load_model_by_id, model_id)
+    model, tfm, classes, patch_size = await run_in_threadpool(load_major_model, model_id)
 
     if points_json:
         try:
@@ -51,15 +54,19 @@ async def process(
 
         chunk = points[i:i + POINTS_CHUNK_SIZE]
         chunk_idxs, chunk_confs = await run_in_threadpool(
-            predict_points_batch, img, chunk, model, tfm
+            predict_points_batch, img, chunk, model, tfm, patch_size
         )
         pred_idxs.extend(chunk_idxs)
         confs.extend(chunk_confs)
 
     for p, idx, conf in zip(points, pred_idxs, confs):
-        p["pred_label"] = CLASSES[int(idx)]
+        p["pred_label"] = classes[int(idx)]
         p["confidence"] = float(conf)
         p.setdefault("method", "automatico")
+
+    if await request.is_disconnected():
+        return Response(status_code=499)
+    await run_in_threadpool(apply_hierarchy, img, points, include_subcategory, include_condition)
 
     annotated = await run_in_threadpool(draw_points, img, points)
 

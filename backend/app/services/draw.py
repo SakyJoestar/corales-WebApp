@@ -12,6 +12,7 @@ CLASS_COLOR_RGB = {
     "Algas": (27, 175, 122),
     "Coral": (235, 104, 52),
     "Otros organismos": (74, 58, 167),
+    "No identificado u otros": (74, 58, 167),  # N1 de la tesis: no identificado + otros organismos
     "Sustrato inerte": (42, 120, 214),
     "Tape": (201, 151, 46),
     "nan": (143, 128, 115),

@@ -7,8 +7,16 @@ import {
   setHighlightedIdx,
 } from "./state.js";
 import { zoomToPoint } from "./viewer.js";
+import { getDetailLevels } from "./levels.js";
+import { enterPointFocus, exitPointFocus } from "./focus.js";
 import { updateManualButtons, syncNPointsFromManual } from "./state.js";
-import { classColorVar, classDisplayLabel } from "./classColors.js";
+import {
+  classColorVar,
+  classDisplayLabel,
+  CORAL_CONDITIONS,
+  CONDITION_CLASS,
+  conditionColorVar,
+} from "./classColors.js";
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => (
@@ -20,6 +28,34 @@ const PLUS_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" s
 const NOTE_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v12l-4 4H4z"></path><path d="M9 9h6M9 13h4"></path></svg>`;
 const TRASH_ICON = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path><path d="M10 11v6M14 11v6"></path></svg>`;
 const EMPTY_RESULTS_ICON = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M4 17l4-4 3 2 5-6 4 4" opacity="0.5"/><circle cx="8" cy="9" r="1"/><circle cx="13.5" cy="13" r="1"/><circle cx="17" cy="8.5" r="1"/></svg>`;
+
+// Pastilla de confianza para lo que sugirió el modelo (vacía si se editó a mano)
+function miniConfHtml(conf) {
+  if (conf == null) return "";
+  const q = confQuality(Number(conf));
+  return `<span class="conf-badge mini ${q.cls}" title="Confianza del modelo">${q.pct}%</span>`;
+}
+
+// Celda de estado: selector solo si el punto es Coral, "—" en cualquier otra clase.
+function conditionCellHtml(p) {
+  if (p.pred_label !== CONDITION_CLASS) {
+    return `<span class="condition-na" title="Solo aplica a Coral">—</span>`;
+  }
+  const current = p.condition ?? "";
+  const options = [`<option value="" ${current ? "" : "selected"}>—</option>`]
+    .concat(
+      CORAL_CONDITIONS.map(
+        (c) => `<option value="${c.code}" ${c.code === current ? "selected" : ""}>${escapeHtml(c.label)}</option>`
+      )
+    )
+    .join("");
+  return `
+    <div class="conditionCell">
+      <span class="condition-dot" style="background:${conditionColorVar(current)};"></span>
+      <select class="conditionSelect" aria-label="Estado del coral">${options}</select>
+      ${miniConfHtml(p.condition_confidence)}
+    </div>`;
+}
 
 function confQuality(conf) {
   if (conf >= 0.75) return { cls: "conf-high", pct: Math.round(conf * 100) };
@@ -114,6 +150,7 @@ export function highlightPointByIdx(idx) {
 export function highlightAndZoomToIdx(idx) {
   if (!lastPoints || idx < 0 || idx >= lastPoints.length) return;
   highlightPointByIdx(idx);
+  enterPointFocus(); // oculta el resto de los puntos hasta "Restablecer puntos en la imagen"
   zoomToPoint(lastPoints[idx], 2.6);
 }
 
@@ -203,14 +240,17 @@ export function renderTable(points) {
           "nan",
         ];
 
+  const levels = getDetailLevels();
+  const colCount = 5 + (levels.subcategory ? 1 : 0) + (levels.condition ? 1 : 0);
+
   let html = `
     <table>
       <thead>
         <tr>
           <th>ID</th>
           <th>Clase</th>
-          <th>Subclase</th>
-          <th>Conf.</th>
+          ${levels.subcategory ? "<th>Subclase</th>" : ""}
+          ${levels.condition ? "<th>Estado</th>" : ""}
           <th>Método</th>
           <th>Nota</th>
           <th class="actionCol"></th>
@@ -234,11 +274,8 @@ export function renderTable(points) {
     const methodBadge =
       method === "manual"
         ? `<span class="badge manual">Manual</span>`
-        : `<span class="badge">Automático</span>`;
+        : `<span class="badge" title="Automático">Auto</span>`;
 
-    const confQ = p.confidence != null ? confQuality(Number(p.confidence)) : null;
-    const confClass = confQ ? confQ.cls : "";
-    const confText = confQ ? `${confQ.pct}%` : "";
 
     const hasNote = !!(p.note && String(p.note).trim());
 
@@ -251,10 +288,11 @@ export function renderTable(points) {
           <div class="classCell">
             <span class="class-dot" style="background:${classColorVar(current)};"></span>
             <select class="classSelect" title="${escapeHtml(classDisplayLabel(current))}">${options}</select>
+            <span class="confCell">${miniConfHtml(p.confidence)}</span>
           </div>
         </td>
-        <td><input type="text" class="subclassInput" value="${escapeHtml(p.subcategory)}" placeholder="—" /></td>
-        <td class="confCell">${confQ ? `<span class="conf-badge ${confClass}">${confText}</span>` : ""}</td>
+        ${levels.subcategory ? `<td><div class="subclassCell"><input type="text" class="subclassInput" value="${escapeHtml(p.subcategory)}" title="${escapeHtml(p.subcategory)}" placeholder="—" />${miniConfHtml(p.subcategory_confidence)}</div></td>` : ""}
+        ${levels.condition ? `<td class="conditionTd">${conditionCellHtml({ ...p, pred_label: current })}</td>` : ""}
         <td class="methodCell">${methodBadge}</td>
         <td>
           <button type="button" class="addNoteBtn${hasNote ? " has-note" : ""}" title="${hasNote ? "Editar nota" : "Agregar nota"}" aria-label="${hasNote ? "Editar nota" : "Agregar nota"}">
@@ -264,7 +302,7 @@ export function renderTable(points) {
         <td class="actionCol"><button type="button" class="delBtn" title="Eliminar punto" aria-label="Eliminar punto">${TRASH_ICON}</button></td>
       </tr>
       <tr class="note-row" data-idx="${i}" style="display:${hasNote ? "table-row" : "none"};">
-        <td colspan="7">
+        <td colspan="${colCount}">
           <textarea class="noteTextarea" placeholder="Escribe una nota o anotación para este punto...">${escapeHtml(p.note)}</textarea>
         </td>
       </tr>
@@ -286,6 +324,22 @@ export function renderTable(points) {
         return;
 
       lastPoints[idx].pred_label = newClass;
+      // la subcategoría sugerida era de la clase anterior: ya no aplica
+      if (lastPoints[idx].subcategory_confidence != null) {
+        delete lastPoints[idx].subcategory;
+        delete lastPoints[idx].subcategory_confidence;
+        const subInput = tr.querySelector("input.subclassInput");
+        if (subInput) {
+          subInput.value = "";
+          subInput.parentElement.querySelector(".conf-badge")?.remove();
+        }
+      }
+      if (newClass !== CONDITION_CLASS) {
+        delete lastPoints[idx].condition;
+        delete lastPoints[idx].condition_confidence;
+      }
+      const condTd = tr.querySelector(".conditionTd");
+      if (condTd) condTd.innerHTML = conditionCellHtml(lastPoints[idx]);
 
       lastPoints[idx].method = "manual";
       lastPoints[idx].confidence = null;
@@ -300,6 +354,9 @@ export function renderTable(points) {
     });
   });
 
+  // estado del coral (delegado: la celda se re-renderiza al cambiar de clase)
+  dom.tableDiv.addEventListener("change", onConditionChange);
+
   // subclase / nota: se guardan en el punto al escribir
   dom.tableDiv.querySelectorAll("input.subclassInput").forEach((inp) => {
     inp.addEventListener("input", (e) => {
@@ -308,6 +365,10 @@ export function renderTable(points) {
       if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length)
         return;
       lastPoints[idx].subcategory = e.target.value;
+      e.target.title = e.target.value;
+      // editado a mano: deja de ser sugerencia del modelo
+      delete lastPoints[idx].subcategory_confidence;
+      e.target.parentElement.querySelector(".conf-badge")?.remove();
     });
   });
 
@@ -365,6 +426,8 @@ export function renderTable(points) {
         dom.overlay.innerHTML = "";
         setHighlightedIdx(-1);
       }
+      // los índices se corren al borrar: salir del enfoque sin mover la vista
+      if (dom.viewer.classList.contains("focus-mode")) exitPointFocus({ refit: false });
 
       lastPoints.splice(idx, 1);
       setLastPoints(lastPoints); // mantiene binding consistente
@@ -374,4 +437,18 @@ export function renderTable(points) {
       updateManualButtons();
     });
   });
+}
+
+function onConditionChange(e) {
+  if (!e.target.matches("select.conditionSelect")) return;
+  const tr = e.target.closest("tr");
+  const idx = Number(tr.dataset.idx);
+  if (!Array.isArray(lastPoints) || idx < 0 || idx >= lastPoints.length) return;
+
+  const code = e.target.value;
+  if (code) lastPoints[idx].condition = code;
+  else delete lastPoints[idx].condition;
+  delete lastPoints[idx].condition_confidence;
+  e.target.parentElement.querySelector(".conf-badge")?.remove();
+  tr.querySelector(".condition-dot").style.background = conditionColorVar(code);
 }

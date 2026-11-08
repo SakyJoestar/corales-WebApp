@@ -1,5 +1,5 @@
 import { dom } from "./dom.js";
-import { setCropModeActive, setLastPoints, setHighlightedIdx, syncNPointsFromManual, updateManualButtons } from "./state.js";
+import { setCropModeActive, setImageProcessed, setLastPoints, setHighlightedIdx, syncNPointsFromManual, updateManualButtons } from "./state.js";
 import { clientToImageCoords } from "./viewer.js";
 import { renderTable } from "./render.js";
 
@@ -102,6 +102,7 @@ function applyCrop() {
     }
 
     dom.outImg.src = dataUrl;
+    setImageProcessed(false);
 
     setLastPoints([]);
     syncNPointsFromManual();
