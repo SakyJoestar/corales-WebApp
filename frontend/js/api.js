@@ -1,5 +1,6 @@
 import { dom } from "./dom.js";
 import { setLevelAvailability } from "./levels.js";
+import { renderLegend } from "./render.js";
 import {
   setAvailableClasses,
   setLastImageBase64,
@@ -42,16 +43,22 @@ export async function loadModels() {
     return;
   }
 
-  if (Array.isArray(data.models[0].classes)) {
-    setAvailableClasses(data.models[0].classes);
-  }
-
+  // cada modelo trae sus clases: el de la tesis tiene 5 y los de la línea base 6
+  const classesById = {};
   for (const m of data.models) {
+    classesById[m.id] = Array.isArray(m.classes) ? m.classes : [];
     const opt = document.createElement("option");
     opt.value = m.id;
     opt.textContent = m.model_name || m.id;
     dom.modelSelect.appendChild(opt);
   }
+
+  const applyClasses = () => {
+    setAvailableClasses(classesById[dom.modelSelect.value] || []);
+    renderLegend();
+  };
+  applyClasses();
+  dom.modelSelect.addEventListener("change", applyClasses);
 }
 
 /* ===================== PROCESS SINGLE ===================== */
