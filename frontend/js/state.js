@@ -26,12 +26,20 @@ export let lastDownloadToken = "";
 export let imageProcessed = false;
 export function setImageProcessed(v) { imageProcessed = !!v; }
 
-// historial de resultados (solo en memoria, dura la sesión del navegador)
+// historial de resultados, de más nuevo a más antiguo. Se persiste en IndexedDB
+// (historyStore.js); aquí está la copia en memoria que usa la interfaz.
 export let resultHistory = [];
-const MAX_HISTORY = 20;
+export const MAX_HISTORY = 50;
 
+// Devuelve las entradas que quedaron fuera por el límite.
 export function addHistoryEntry(entry) {
-  resultHistory = [entry, ...resultHistory].slice(0, MAX_HISTORY);
+  const all = [entry, ...resultHistory];
+  resultHistory = all.slice(0, MAX_HISTORY);
+  return all.slice(MAX_HISTORY);
+}
+
+export function setHistory(entries) {
+  resultHistory = (entries || []).slice(0, MAX_HISTORY);
 }
 
 export function removeHistoryEntry(id) {

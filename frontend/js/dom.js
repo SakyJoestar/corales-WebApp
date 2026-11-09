@@ -60,6 +60,10 @@ export function initDom() {
   dom.historyModal = document.getElementById("historyModal");
   dom.historyModalCloseBtn = document.getElementById("historyModalCloseBtn");
   dom.clearHistoryBtn = document.getElementById("clearHistoryBtn");
+  dom.exportHistoryBtn = document.getElementById("exportHistoryBtn");
+  dom.importHistoryBtn = document.getElementById("importHistoryBtn");
+  dom.importHistoryInput = document.getElementById("importHistoryInput");
+  dom.historyStorageNote = document.getElementById("historyStorageNote");
 
   // Validación rápida: si falta algo, lo sabrás al instante
   const required = ["modelSelect", "imageForm", "viewer", "outImg"];

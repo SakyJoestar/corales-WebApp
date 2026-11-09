@@ -15,7 +15,7 @@ import { updateNPointsState, updateModeTabsUI, clearSinglePreview, updateManualB
 import { updateResetButtonState, zoomAtCenter, fitToViewerCenter } from "./viewer.js";
 import { initTheme, bindThemeToggle } from "./theme.js";
 import { renderLegend, renderTable } from "./render.js";
-import { renderHistory, bindHistoryModal } from "./history.js";
+import { renderHistory, bindHistoryModal, bindHistorySync, initHistory } from "./history.js";
 import { bindCropButton } from "./crop.js";
 import { bindSidebarToggle } from "./sidebar.js";
 import { bindDetailLevels } from "./levels.js";
@@ -43,6 +43,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   clearSinglePreview();
   renderHistory();
   bindHistoryModal();
+  bindHistorySync();
+  // IndexedDB: no bloquea el resto del arranque
+  initHistory().catch((err) => console.warn("Historial no disponible:", err));
 
   bindDropzone();
   bindViewerEvents();           // pan/zoom + reset
