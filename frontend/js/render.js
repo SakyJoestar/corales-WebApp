@@ -95,20 +95,32 @@ export function renderAllManualPoints() {
   const W = dom.outImg.naturalWidth;
   const H = dom.outImg.naturalHeight;
 
-  const baseSize = Math.max(10, Math.floor(Math.min(W, H) * 0.014));
-  const half = Math.floor(baseSize / 2);
-  const fontSize = Math.max(16, Math.floor(Math.min(W, H) * 0.024));
+  // Mismas proporciones que la imagen anotada del servidor (backend/app/services/draw.py).
+  // Todo va en píxeles de la foto, que el visor reduce: por eso los bordes son relativos
+  // al tamaño de la foto y no fijos. Antes de procesar el punto aún no tiene clase: blanco.
+  const s = Math.min(W, H);
+  const radius = Math.max(6, Math.floor(s * 0.009));
+  const ring = Math.max(2, Math.floor(s * 0.0024));
+  const outline = Math.max(1, Math.floor(ring / 2));
+  const dot = Math.max(2, Math.floor(s * 0.0012));
+  const fontSize = Math.max(26, Math.floor(s * 0.034));
+  const stroke = Math.max(2, Math.floor(fontSize / 14));
+  const rOut = radius + outline;
+  const textShadow = [
+    [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1],
+  ].map(([dx, dy]) => `${dx * stroke}px ${dy * stroke}px 0 #000`).join(", ");
 
   for (const p of lastPoints) {
     const el = document.createElement("div");
     el.className = "point-marker";
     el.style.left = p.x + "px";
     el.style.top = p.y + "px";
-    el.style.setProperty("--marker-color", classColorVar(p.pred_label));
+    el.style.setProperty("--marker-color", "#ffffff");
 
     el.innerHTML = `
-  <div class="dot" style="width:${baseSize}px; height:${baseSize}px;"></div>
-  <div class="plabel" style="left:${half + 5}px; top:${-half - 2}px; font-size:${fontSize}px;">
+  <div class="dot" style="width:${2 * radius}px; height:${2 * radius}px; border-width:${ring}px; box-shadow:0 0 0 ${outline}px #000, inset 0 0 0 ${outline}px #000;"></div>
+  <div class="center-dot" style="width:${2 * dot}px; height:${2 * dot}px; box-shadow:0 0 0 ${outline}px #000;"></div>
+  <div class="plabel" style="left:${rOut + stroke + 4}px; top:${-Math.floor(fontSize / 2)}px; font-size:${fontSize}px; line-height:1; text-shadow:${textShadow};">
     ${p.label ?? ""}
   </div>
 `;
