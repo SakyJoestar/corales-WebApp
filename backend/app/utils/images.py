@@ -3,7 +3,9 @@ from PIL import Image, UnidentifiedImageError
 
 # Formatos aceptados: los mismos que anuncia la interfaz (PNG y JPG).
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg"}
-ALLOWED_FORMATS = {"PNG", "JPEG"}
+# MPO es JPEG con más de una imagen dentro (lo producen algunas cámaras, p. ej. Nikon);
+# PIL lo reporta aparte, pero es un JPG normal para el usuario.
+ALLOWED_FORMATS = {"PNG", "JPEG", "MPO"}
 ALLOWED_LABEL = "PNG o JPG"
 
 
