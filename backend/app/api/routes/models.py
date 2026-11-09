@@ -1,24 +1,20 @@
 from fastapi import APIRouter
-from ...core.config import CLASSES, HIERARCHICAL_MODEL_ID, HIERARCHICAL_LABELS
+from ...core.config import HIERARCHICAL_MODEL_ID, HIERARCHICAL_LABELS
 from ...services.hierarchy import availability
 from ...services.model_loader import model_available
 
 router = APIRouter()
 
-# El primero es el que la interfaz selecciona por defecto.
-# hierarchical=True: modelo final de la tesis (N1 de 5 clases, recorte 224); el resto son la línea base
-# (6 clases del esquema v2, recorte 32), que se dejan para comparar.
+# El primero es el que la interfaz selecciona por defecto. Todos son el N1 de la tesis
+# (5 clases, recorte 224); la subcategoría y el estado salen siempre de los MobileNetV2 finales.
+# MobileNetV2 es el modelo final (todas las fotos); los demás son el modelo de una partición
+# de la comparación de arquitecturas (meta.json del Hub dice cuál).
+_N1_CLASSES = list(HIERARCHICAL_LABELS.values())
 AVAILABLE_MODELS = [
-    {
-        "id": HIERARCHICAL_MODEL_ID,
-        "model_name": "MobileNetV2 jerárquico (tesis)",
-        "hierarchical": True,
-        "classes": list(HIERARCHICAL_LABELS.values()),
-    },
-    {"id": "alexnet", "model_name": "AlexNet (línea base)", "hierarchical": False, "classes": CLASSES},
-    {"id": "resnet", "model_name": "ResNet18 (línea base)", "hierarchical": False, "classes": CLASSES},
-    {"id": "vgg16", "model_name": "VGG16 (línea base)", "hierarchical": False, "classes": CLASSES},
-    {"id": "mobilenet_v2", "model_name": "MobileNetV2 (línea base)", "hierarchical": False, "classes": CLASSES},
+    {"id": HIERARCHICAL_MODEL_ID, "model_name": "MobileNetV2 (recomendado)", "hierarchical": True, "classes": _N1_CLASSES},
+    {"id": "n1_efficientnet_b0", "model_name": "EfficientNet-B0", "hierarchical": True, "classes": _N1_CLASSES},
+    {"id": "n1_resnet50", "model_name": "ResNet50", "hierarchical": True, "classes": _N1_CLASSES},
+    {"id": "n1_alexnet", "model_name": "AlexNet", "hierarchical": True, "classes": _N1_CLASSES},
 ]
 
 MODELS_BY_ID = {m["id"]: m for m in AVAILABLE_MODELS}
@@ -32,8 +28,8 @@ def is_hierarchical(model_id: str) -> bool:
 def list_models():
     items = []
     for m in AVAILABLE_MODELS:
-        # la línea base se asume en el Hub; el modelo de la tesis solo se ofrece si está
-        if m["hierarchical"] and not model_available(m["id"]):
+        # solo se ofrecen los modelos que están en models_store/ o en el Hub
+        if not model_available(m["id"]):
             continue
         items.append({
             "id": m["id"],

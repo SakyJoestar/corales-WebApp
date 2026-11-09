@@ -12,6 +12,10 @@ POINTS_CHUNK_SIZE = 256  # inference done in chunks so a client cancel is notice
 # en models_store/ o en el Hub, tiene best_model.pt + label_map.json + meta.json (con el
 # tamaño de recorte de su nivel).
 HIERARCHICAL_MODEL_ID = "n1_mobilenet_v2"          # categoría mayor, 5 clases, recorte 224
+# N1 con otras arquitecturas (comparación de arquitecturas, 2026-11-07): mismas 5 clases y
+# recorte 224, pero cada uno es el modelo de una partición de la validación cruzada. La
+# subcategoría y el estado siguen saliendo de los MobileNetV2 finales.
+N1_MODEL_IDS = [HIERARCHICAL_MODEL_ID, "n1_efficientnet_b0", "n1_resnet50", "n1_alexnet"]
 # subcategoría: un modelo por categoría mayor (clase de la app -> id del modelo)
 SUBCATEGORY_MODEL_IDS = {
     "Coral": "n2_coral_mobilenet_v2",              # recorte 224

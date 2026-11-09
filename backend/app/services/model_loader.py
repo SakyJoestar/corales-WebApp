@@ -7,7 +7,7 @@ from torchvision import models, transforms
 
 from huggingface_hub import hf_hub_download, file_exists
 
-from ..core.config import CLASSES, NUM_CLASSES, MODELS_DIR, HIERARCHICAL_LABELS, HIERARCHICAL_MODEL_ID
+from ..core.config import CLASSES, NUM_CLASSES, MODELS_DIR, HIERARCHICAL_LABELS, N1_MODEL_IDS
 
 HF_REPO_ID = "SamuelGal/coral-models"
 
@@ -33,6 +33,16 @@ def build_model(arch: str, num_classes: int):
     if arch == "alexnet":
         m = models.alexnet(weights=None)
         m.classifier[6] = nn.Linear(m.classifier[6].in_features, num_classes)
+        return m
+
+    if arch == "resnet50":
+        m = models.resnet50(weights=None)
+        m.fc = nn.Linear(m.fc.in_features, num_classes)
+        return m
+
+    if arch == "efficientnetb0":
+        m = models.efficientnet_b0(weights=None)
+        m.classifier[1] = nn.Linear(m.classifier[1].in_features, num_classes)
         return m
 
     if arch == "mobilenetv2":
@@ -112,13 +122,13 @@ def load_labeled_model(model_id: str):
 def load_major_model(model_id: str):
     """Modelo de categoría mayor. Devuelve (model, tfm, classes, patch_size).
 
-    - HIERARCHICAL_MODEL_ID: N1 de la tesis (5 clases, recorte 224); las clases se traducen
-      a los nombres de la app con HIERARCHICAL_LABELS.
+    - N1_MODEL_IDS: N1 de la tesis (5 clases, recorte 224) con MobileNetV2 y las otras
+      arquitecturas; las clases se traducen a los nombres de la app con HIERARCHICAL_LABELS.
     - si no: modelos de la línea base (6 clases de CLASSES, recorte 32). Salen siempre del
       Hub: models_store/ tiene copias viejas (AlexNet/, vgg16/...) que en Windows
       coincidirían por mayúsculas.
     """
-    if model_id == HIERARCHICAL_MODEL_ID:
+    if model_id in N1_MODEL_IDS:
         model, tfm, labels, patch_size = load_labeled_model(model_id)
         return model, tfm, [HIERARCHICAL_LABELS.get(l, l) for l in labels], patch_size
 
