@@ -1,7 +1,6 @@
 import io, os, zipfile
 from datetime import datetime
 from openpyxl import Workbook
-from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
 from ..utils.naming import safe_filename, safe_sheet_name
@@ -10,6 +9,7 @@ from .inference import predict_points_batch
 from .draw import draw_points
 from .excel_export import add_points_to_sheet
 from .hierarchy import apply_hierarchy
+from ..utils.images import open_image
 
 async def process_batch_zip(request, files, n: int, model_id: str, model, tfm, classes, patch_size,
                             include_subcategory: bool = False,
@@ -28,11 +28,8 @@ async def process_batch_zip(request, files, n: int, model_id: str, model, tfm, c
             if await request.is_disconnected():
                 break
 
-            raw = await uf.read()
-            try:
-                img = Image.open(io.BytesIO(raw)).convert("RGB")
-            except Exception:
-                continue
+            # ya validada en la ruta (PNG/JPG)
+            img = open_image(await uf.read(), uf.filename)
 
             w, h = img.size
             points = generate_random_points(w, h, n=n)

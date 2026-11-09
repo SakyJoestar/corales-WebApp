@@ -1,5 +1,4 @@
 import io, json, base64
-from PIL import Image
 from fastapi import APIRouter, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
@@ -10,6 +9,7 @@ from ...services.points import generate_random_points, normalize_manual_points
 from ...services.inference import predict_points_batch
 from ...services.draw import draw_points
 from ...services.hierarchy import apply_hierarchy
+from ...utils.images import open_image, InvalidImageError
 import uuid
 from fastapi.responses import Response
 
@@ -31,7 +31,10 @@ async def process(
         return JSONResponse({"error": "Selecciona un modelo"}, status_code=400)
 
     content = await file.read()
-    img = Image.open(io.BytesIO(content)).convert("RGB")
+    try:
+        img = open_image(content, file.filename)
+    except InvalidImageError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     w, h = img.size
 
     model, tfm, classes, patch_size = await run_in_threadpool(load_major_model, model_id)

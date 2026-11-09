@@ -5,6 +5,7 @@ from starlette.concurrency import run_in_threadpool
 from ...core.config import MAX_BATCH_IMAGES
 from ...services.model_loader import load_major_model
 from ...services.batch import process_batch_zip
+from ...utils.images import open_image, InvalidImageError
 
 router = APIRouter()
 
@@ -24,6 +25,18 @@ async def process_batch(
         return JSONResponse({"error": "Sube al menos 1 imagen"}, status_code=400)
     if len(files) > MAX_BATCH_IMAGES:
         return JSONResponse({"error": f"Máximo {MAX_BATCH_IMAGES} imágenes"}, status_code=400)
+
+    # Todo el lote se valida antes de procesar: un archivo que no es PNG/JPG rechaza el
+    # lote con su nombre, en vez de omitirse en silencio.
+    errors = []
+    for uf in files:
+        try:
+            open_image(await uf.read(), uf.filename)
+        except InvalidImageError as e:
+            errors.append(str(e))
+        await uf.seek(0)
+    if errors:
+        return JSONResponse({"error": " ".join(errors)}, status_code=400)
 
     model, tfm, classes, patch_size = await run_in_threadpool(load_major_model, model_id)
     zip_buf, filename = await process_batch_zip(

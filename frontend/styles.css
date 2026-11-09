@@ -1082,9 +1082,18 @@ html[data-theme="dark"] .conf-badge.conf-low { color: #ff8a97; }
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  box-sizing: border-box;
   border-radius: 50%;
   background: transparent;
   border: 2px solid var(--marker-color, var(--c-coral));
+}
+.point-marker .center-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--marker-color, var(--c-coral));
 }
 .point-marker .plabel {
   position: absolute;

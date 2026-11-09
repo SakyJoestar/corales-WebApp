@@ -51,15 +51,20 @@ def draw_points(
     out = img.convert("RGB").copy()
     draw = ImageDraw.Draw(out)
 
-    print(">>> draw.py VERSION = 2026-02-23 FONT DEBUG")
-
     W, H = out.size
     s = min(W, H)
 
-    radius = max(4, int(s * 0.007))
-    ring_width = max(1, radius // 2)
+    # Tamaños relativos al lado menor de la foto (los mismos que el marcado manual del
+    # frontend, render.js): anillo hueco del color de la clase con contorno negro, un punto
+    # central para ver dónde cae exactamente y el ID con contorno negro para leerlo sobre
+    # cualquier fondo.
+    radius = max(6, int(s * 0.009))
+    ring_width = max(2, int(s * 0.0024))
+    outline = max(1, ring_width // 2)
+    dot = max(2, int(s * 0.0012))
 
-    font_size  = max(26, int(s * 0.034))
+    font_size = max(26, int(s * 0.034))
+    stroke = max(2, font_size // 14)
     font = _load_font(font_size)
 
     for p in points:
@@ -68,16 +73,18 @@ def draw_points(
         label = str(p.get("label", "") or "")
         p_color = CLASS_COLOR_RGB.get(p.get("pred_label"), color)
 
-        # anillo hueco (sin relleno) del color de la clase, sin tapar el
-        # punto exacto.
-        draw.ellipse(
-            (x - radius, y - radius, x + radius, y + radius),
-            outline=p_color, width=ring_width,
-        )
+        r_out = radius + outline
+        draw.ellipse((x - r_out, y - r_out, x + r_out, y + r_out),
+                     outline=(0, 0, 0), width=ring_width + 2 * outline)
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius),
+                     outline=p_color, width=ring_width)
+        draw.ellipse((x - dot - outline, y - dot - outline, x + dot + outline, y + dot + outline),
+                     fill=(0, 0, 0))
+        draw.ellipse((x - dot, y - dot, x + dot, y + dot), fill=p_color)
 
-        # offsets similares a tu estilo, ajustados a letra grande
-        tx = x + radius + 5
+        tx = x + r_out + stroke + 4
         ty = y - (font_size // 2)
-        draw.text((tx, ty), label, fill=p_color, font=font)
+        draw.text((tx, ty), label, fill=p_color, font=font,
+                  stroke_width=stroke, stroke_fill=(0, 0, 0))
 
     return out

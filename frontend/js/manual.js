@@ -201,6 +201,17 @@ function renderFileChips(files) {
 }
 
 /* ===================== FILE EVENTS ===================== */
+// Igual que el servidor (backend/app/utils/images.py): solo PNG y JPG.
+const MAX_FILES = 25;
+const ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg"];
+const ALLOWED_TYPES = ["image/png", "image/jpeg"];
+
+function isAllowedImage(file) {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  // algunos sistemas no informan el tipo: entonces basta la extensión
+  return ALLOWED_EXTENSIONS.includes(ext) && (!file.type || ALLOWED_TYPES.includes(file.type));
+}
+
 export function bindFileEvents() {
   dom.imageFile.addEventListener("change", () => {
     const files = dom.imageFile.files ? Array.from(dom.imageFile.files) : [];
@@ -212,8 +223,14 @@ export function bindFileEvents() {
     setManualLocked(false);
 
     // Validación simple
-    if (files.length > 25) {
-      dom.statusEl.textContent = "Error: Máximo 25 imágenes.";
+    const invalid = files.filter((f) => !isAllowedImage(f));
+    const error = invalid.length
+      ? `Error: solo se aceptan imágenes PNG o JPG. No válido(s): ${invalid.map((f) => f.name).join(", ")}.`
+      : files.length > MAX_FILES
+        ? `Error: Máximo ${MAX_FILES} imágenes.`
+        : "";
+    if (error) {
+      dom.statusEl.textContent = error;
       dom.imageFile.value = "";
       dom.fileCount.textContent = "";
       renderFileChips([]);
