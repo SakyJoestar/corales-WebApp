@@ -1092,3 +1092,7 @@ html[data-theme="dark"] .conf-badge.conf-low { color: #ff8a97; }
   color: var(--marker-color, var(--c-coral));
   white-space: nowrap;
 }
+
+/* el selector de modelo no debe salirse de la tarjeta del panel */
+.field-inline { min-width: 0; max-width: 100%; }
+#modelSelect { min-width: 0; max-width: 100%; flex: 1 1 auto; text-overflow: ellipsis; }
