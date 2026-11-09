@@ -602,11 +602,19 @@ export function bindFormEvents() {
 /* ===================== DOWNLOADS ===================== */
 export function bindDownloadEvents() {
   dom.downloadImgBtn.addEventListener("click", async () => {
+    // la imagen anotada ya está en el navegador (es la misma que entrega el servidor);
+    // así también se descarga desde el historial, cuando el token ya no existe
+    if (lastImageBase64) {
+      const bin = atob(lastImageBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      downloadBlob(new Blob([bytes], { type: "image/png" }), `${lastBaseName || "imagen"} (anotada).png`);
+      return;
+    }
     if (!lastDownloadToken) {
       alert("Primero presiona Procesar.");
       return;
     }
-    console.log("TOKEN:", lastDownloadToken);
     try {
       const res = await fetch(`/download/image/${lastDownloadToken}`);
       if (!res.ok) throw new Error("Error descargando imagen");

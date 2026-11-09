@@ -246,12 +246,24 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
           </button>
         </div>
+        <p class="help-text history-storage-note" id="historyStorageNote"></p>
         <div class="modal-subtitle-row">
           <p class="help-text modal-subtitle">Selecciona una imagen anotada</p>
+          <div class="history-actions">
+          <button type="button" id="exportHistoryBtn" class="btn-icon-label btn-small" disabled title="Descargar el historial como archivo">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+            Exportar
+          </button>
+          <button type="button" id="importHistoryBtn" class="btn-icon-label btn-small" title="Cargar un historial exportado">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5"/><path d="M4 19h16"/></svg>
+            Importar
+          </button>
+          <input type="file" id="importHistoryInput" accept=".json,application/json" hidden />
           <button type="button" id="clearHistoryBtn" class="btn-icon-label btn-danger btn-small" disabled>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>
-            Limpiar historial
+            Limpiar
           </button>
+          </div>
         </div>
         <div id="historyList" class="history-list"></div>
       </div>
